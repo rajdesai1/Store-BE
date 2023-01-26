@@ -22,7 +22,7 @@ def user_profile(request):
     if request.id:
         user = database['User'].find_one({'_id' : request.id})
     
-    print(user)
+    print(user.pop('password'))
     # out = [i for i in user]
     return JsonResponse(output_format(message="Success!", data=user))
 
