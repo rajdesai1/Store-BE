@@ -37,9 +37,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'apis',     #apis app
+
+    #3rd party
+    'rest_framework',
+    'corsheaders',
+    'rest_framework_mongoengine',
+    'mongo_auth',   # for login, signup APIs
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -47,6 +56,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    #user defined middleware
+    'apis.middleware.AuthenticateMiddleware'
 ]
 
 ROOT_URLCONF = 'Darwin.urls'
@@ -79,6 +91,23 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+
+#mongo_auth db settings
+MANGO_JWT_SETTINGS = {
+    "db_host": "localhost", # Use srv host if connecting with MongoDB Atlas Cluster
+    "db_port": "27017", # Don't include this field if connecting with MongoDB Atlas Cluster
+    "db_name": "mystore",
+    "db_user": "username",
+    "db_pass": "password",
+    "auth_collection": "User",
+    "fields": ("email", "password"), # default
+    "jwt_secret": "secret", # default
+    "jwt_life": 7, # default (in days)
+    # "secondary_username_field": "mobile_no" # default is None
+}
+
+
 
 
 # Password validation
