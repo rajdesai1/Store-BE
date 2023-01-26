@@ -1,8 +1,8 @@
 import uuid
 import jwt
 from passlib.context import CryptContext
-from mongo_auth.db import jwt_secret, auth_collection
-from mongo_auth.db import database
+from .db import jwt_secret, auth_collection
+from .db import database
 
 
 pwd_context = CryptContext(
@@ -28,3 +28,9 @@ def login_status(request):
         flag = True
         user_obj = list(user_filter)[0]
     return flag, user_obj
+
+
+#for formatting output in json response
+def output_format(status=200, message='', data={}):
+    response = {"status" : status, "message":message, "data" : data}
+    return response

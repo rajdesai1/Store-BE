@@ -1,9 +1,9 @@
 from rest_framework.decorators import api_view
-from mongo_auth.utils import create_unique_object_id, pwd_context
-from mongo_auth.db import database, auth_collection, fields, jwt_life, jwt_secret, secondary_username_field
+from .utils import create_unique_object_id, pwd_context, output_format
+from .db import database, auth_collection, fields, jwt_life, jwt_secret, secondary_username_field
 import jwt
 import datetime
-from mongo_auth import messages
+from . import messages
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -47,10 +47,10 @@ def signup(request):
                 database[auth_collection].insert_one(signup_data)
                 res = {k: v for k, v in signup_data.items() if k not in ["_id", "password"]}
                 return Response(status=status.HTTP_200_OK,
-                                data={"data": res})
+                                data=output_format(message='Success!', data={}))
         else:
             return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED,
-                            data={"data": {"error_msg": messages.user_exists}})
+                            data=output_format(message='User already exists with this email.'))
     except ValidationError as v_error:
         return Response(status=status.HTTP_400_BAD_REQUEST,
                         data={'success': False, 'message': str(v_error)})
@@ -80,18 +80,18 @@ def login(request):
                 
                 # print(user['password'])
                 #making of token
-                token = jwt.encode({'id': user['email'],
+                token = jwt.encode({'id': user['_id'],
                                     'exp': datetime.datetime.now() + datetime.timedelta(
                                         hours=2)},
                                    jwt_secret, algorithm='HS256')
                 # print("hedfdfdfllo", token)
                 # time.sleep(10)
                 #decoding of token
-                result = jwt.decode(token, jwt_secret, algorithms='HS256')
+                    # result = jwt.decode(token, jwt_secret, algorithms='HS256')
 
                 # print("myyy result: ", result)
                 return Response(status=status.HTTP_200_OK,
-                                data={"data": {"token": token}})
+                                data=output_format(message='Success!', data={"token":token}))
             else:
                 return Response(status=status.HTTP_403_FORBIDDEN,
                                 data={"error_msg": messages.incorrect_password})

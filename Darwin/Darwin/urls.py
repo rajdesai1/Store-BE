@@ -19,6 +19,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include("apis.urls")),   #api access url in main url file
-    path('api/', include('mongo_auth.urls')),
+    path('', include("apis.urls")),   #api access url in main url file
 ]
