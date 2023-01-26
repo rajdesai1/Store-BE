@@ -11,5 +11,8 @@ urlpatterns = [
     path('signup/', auth_views.signup, name="signup"),
     path('login/', auth_views.login, name="login"),
     # path('users/', views.myview, name="users"),
+
+
+    path('navbar-shop-category/', view=views.navbar_shop_category, name='navbar-shop=category')
     
 ]

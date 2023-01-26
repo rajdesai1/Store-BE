@@ -53,6 +53,10 @@ def change_password(request):
     #     return JsonResponse({"sdfg":4})
 
 
+@api_view(['GET'])
+def navbar_shop_category(request):
+    pass
+
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   
