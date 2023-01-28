@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -113,6 +113,26 @@ MANGO_JWT_SETTINGS = {
 
 
 
+#firebase product-image-upload configs
+
+FIREBASECONFIG = {
+#   "apiKey": "AIzaSyA3PdpsewMS99e-_S_SzqrWvSGYHx2rnAs",
+#   "authDomain": "online-store-37.firebaseapp.com",
+#   "projectId": "online-store-37",
+#   "storageBucket": "online-store-37.appspot.com",
+# #   "appId": "1:60952080625:web:12497213ce9fe2d927f950",
+#   "databaseURL": "https://online-store-37-default-rtdb.firebaseio.com",
+            "apiKey": "AIzaSyBSZIUFp4dkPZqVHCGGph0RTb_Bq9cgH7Q",
+          "authDomain": "clothing-store-2.firebaseapp.com",
+          "projectId": "clothing-store-2",
+          "storageBucket": "clothing-store-2.appspot.com",
+          "messagingSenderId": "849818401432",
+          "appId": "1:849818401432:web:b3c51287604d037f552eed",
+          "measurementId": "G-P18RPNLV1X",
+  "databaseURL": "https://clothing-store-2-default-rtdb.firebaseio.com/",
+}
+
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -149,6 +169,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+##### added for firebase image upload
+# Actual directory user files go to
+MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), 'mediafiles')
+
+# URL used to access the media
+MEDIA_URL = '/media/'
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

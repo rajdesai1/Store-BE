@@ -17,20 +17,27 @@ class AuthenticateMiddleware:
         self.allowed_apis = [
                         'user-profile', 
                         'change-password',
+                        'admin-supplier',
+                        'admin-category-type',
+                        'admin-category',
+                        'admin-product',
                     ]
         # One-time configuration and initialization.
 
     def __call__(self, request):
-        
+
         #getting name of the view
         url = resolve(request.path_info)
         view_name = url.view_name
         print("View name : ", view_name)
 
         if view_name in self.allowed_apis:
+
             #grabbing token
-            if request.headers.get('Authorization'):
-                token = request.headers['Authorization'].split()[1]
+            try:
+                token = request.headers['Authorization'].split()[1].strip('\"')
+            except:
+                return JsonResponse(output_format(message='Token not found!'))
 
             #decoding token
             result = AuthenticateMiddleware.has_key(token)
@@ -41,8 +48,9 @@ class AuthenticateMiddleware:
                 #checking if expired
                 if datetime.datetime.fromtimestamp(result['exp']) > datetime.datetime.now():
                     
-                    view_kwargs = {'id' : result['id']}
-                    request.id = result['id']
+                    
+                    request.id = result['id']['id']
+                    request.role = result['id']['role']
                     # request['email'] = result['id']
             else:
                 return JsonResponse(output_format(message="Token Expired!"), status = 200)
@@ -58,6 +66,8 @@ class AuthenticateMiddleware:
             return jwt.decode(token, jwt_secret, algorithms='HS256')
         except jwt.exceptions.ExpiredSignatureError as exp_err:
             return None
+        except Exception:
+            return JsonResponse(output_format(message='Token corrupted.'))
     
     # def process_request(self, request):
         # url = resolve(request.path_info)

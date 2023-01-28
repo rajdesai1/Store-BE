@@ -3,7 +3,9 @@ import jwt
 from passlib.context import CryptContext
 from .db import jwt_secret, auth_collection
 from .db import database
-
+from Darwin.settings import FIREBASECONFIG
+from django.core.files.storage import default_storage
+import pyrebase
 
 pwd_context = CryptContext(
     default="django_pbkdf2_sha256",
@@ -13,7 +15,7 @@ pwd_context = CryptContext(
 
 
 def create_unique_object_id():
-    unique_object_id = "ID_{uuid}".format(uuid=uuid.uuid4())
+    unique_object_id = "ID-{uuid}".format(uuid=uuid.uuid4())
     return unique_object_id
 
 
@@ -34,3 +36,17 @@ def login_status(request):
 def output_format(status=200, message='', data={}):
     response = {"status" : status, "message":message, "data" : data}
     return response
+
+# def parse_value(val = , out=int):
+#     return out(val)
+
+
+def firebase_image_upload(request, id):
+
+    #setting up firebase connection
+    firebase = pyrebase.initialize_app(FIREBASECONFIG)
+    storage = firebase.storage()
+    for i in request.FILES.values():
+        pass
+
+        # default_storage.
