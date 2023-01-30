@@ -3,13 +3,15 @@ from django.urls import reverse
 from django.http import HttpResponse, JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
-from .db import database, client
+from .db import database, client, jwt_secret
 from .utils import pwd_context, output_format, create_unique_object_id
 import pyrebase
 from django.core.files.storage import default_storage
 from Darwin.settings import FIREBASECONFIG
 import os
 import datetime
+import json
+import jwt
 
 # Create your views here.
 
@@ -17,8 +19,7 @@ def myview(request):
     # url = reverse('view_post', args=[23425678])
     # print(url)
     
-    return HttpResponse("<h1>Hah! Nothing here.</h1>")
-
+    return HttpResponse("<h1>Hah! Got'eem.</h1>")
 
 
 @api_view(['GET'])
@@ -176,6 +177,7 @@ def cat_type(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
+
 @api_view(['POST', 'GET'])
 def admin_category(request):
 
@@ -188,7 +190,7 @@ def admin_category(request):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             data = request.data.dict()
-            #checking if category already exists
+            #checking if the same category already exists in same category type
             if database['Category'].find_one({'cat_title': data['cat_title'], 'cat_type_id':data['cat_type_id']}) is None:
 
                 # checking whether cat-type exists or not 
@@ -289,7 +291,7 @@ def admin_product(request):
                 data['active'] = True if request.POST['active'] == 'true' or 'True' else False
                 data['prod_desc'] = request.POST['prod_desc']
                 data['created_at'] = datetime.datetime.now()
-                data['prod_price'] = request.POST['prod_price']
+                data['prod_price'] = int(request.POST['prod_price'])
                 data['prod_qty'] = {}
                 data['prod_image'] = []
 
@@ -350,6 +352,7 @@ def admin_product(request):
                         '$project': {
                             '_id': '$Product._id',
                             'prod_name': '$Product.prod_name',
+                            'cat_id':'$_id',
                             'cat_type': '$cat_title',
                             'active': '$Product.active',
                             'prod_price': '$Product.prod_price',
@@ -371,6 +374,366 @@ def admin_product(request):
             return JsonResponse(output_format(message='User not admin.'))
 
 
+@api_view(['POST', 'GET'])
+def admin_purchase(request):
+
+##### for uploading purchased products from admin panel
+    if request.method == 'POST':
+
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            try:
+                data = json.loads(request.body)     #loading body string to json data
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+
+            #checking whether supplier exists
+            if database['Supplier'].find_one({'_id':data['supp_id']}) is None:
+                return JsonResponse(output_format(message='Supplier doesn\'nt exist.'))
+            
+            #processing Purchase details
+            for product_details in data['Purchase-details']:
+                
+                #checking whether product exists or not
+                if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
+                    return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                
+                #adding purchased qty to the existing product
+                prod_qty = {}
+                for size, qty in product_details['purch_qty'].items():
+                    prod_qty[f'prod_qty.{size}'] = qty
+                print(prod_qty)
+                database['Product'].update_one({"_id": product_details['prod_id']},
+                    {"$inc": prod_qty}
+                )
+
+            #inserting data
+            try:
+                data['_id'] = create_unique_object_id()
+                database['Purchase'].insert_one(data)
+                return JsonResponse(output_format(message='Success!'))
+            except:
+                return JsonResponse(output_format(message='Purchase not inserted.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+    elif request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            #getting and returning all the products from the db
+            try:
+                pipeline = [{
+                        '$lookup':{
+                            'from':'Purchase',
+                            'localField':'_id',
+                            'foreignField':'supp_id',
+                            'as':'Purchase'
+                        }
+                    },
+                    {
+                        '$unwind':'$Purchase'
+                    },
+                    {
+                        '$project': {
+                            '_id': '$Purchase._id',
+                            'supp_name': '$name',    #supplier name
+                            'date': '$Purchse.date',
+                            'total_amount': '$Purchase.total_amount',
+                            'Purchase-details':'$Purchase.Purchase-details'
+                        }
+                    }
+                ]
+
+                data = database['Supplier'].aggregate(pipeline=pipeline)
+                data = [i for i in data]
+                print(data)
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Purchases not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+
+@api_view(['POST', 'GET'])
+def customer_address(request):
+
+##### for addding customer's address   
+    if request.method == 'POST':
+        
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            request_data = request.data.dict()
+            data = {}
+
+            #checking data format
+            try:
+                data['user_id'] = user['_id']
+                data['house_no'] = request_data['house_no']
+                data['area_street'] = request_data['area_street']
+                data['add_type'] = request_data['add_type']
+                data['pincode'] = int(request_data['pincode'])
+                data['state'] = request_data['state']
+
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+
+            #inserting data
+            try:
+                data['_id'] = create_unique_object_id()
+                database['Ship-add'].insert_one(data)
+                return JsonResponse(output_format(message='Success!'))
+            except:
+                return JsonResponse(output_format(message='Address not inserted.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+##### for getting all addresses for a user
+    elif request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            #getting and returning all the products from the db
+            try:
+                # pipeline = [{
+                #         '$lookup':{
+                #             'from':'Ship-add',
+                #             'localField':'_id',
+                #             'foreignField':'user_id',
+                #             'as':'Ship-add'
+                #         }
+                #     },
+                #     {
+                #         '$unwind':'$Ship-add'
+                #     },
+                #     {
+                #         '$project': {
+                #             '_id': '$Ship-add._id',
+                #             'user_name': '$name',    #user name
+                #             'user_id': '$_id',
+                #             'house_no': '$Ship-add.house_no',
+                #             'area_street': '$Ship-add.area_street',
+                #             'city':'$Ship-add.city',
+                #             'state': '$Ship-add.state',
+                #             'pincode': '$Ship-add.pincode',
+                #             'add_type': '$Ship-add.add_type'
+                #         }
+                #     }
+                # ]
+
+                data = database['Ship-add'].find({"user_id": user['_id']})
+                data = [i for i in data]
+                print(data)
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Addresses not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+
+@api_view(['POST', 'GET'])
+def product_discount(request):
+
+##### for adding discount from admin panel
+    if request.method == 'POST':
+
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            request_data = request.data.dict()
+            data = {}
+            #checking if cat_type already exists
+            if database['Discount'].find_one({'coupon_code': request_data['coupon_code']}) is None:
+
+                #checking data format
+                try:
+                    data['disc_percent'] =  float(request_data['disc_percent'])
+                    data['coupon_code'] = request_data['coupon_code']   
+                    data['valid_from'] = request_data['valid_from']
+                    data['valid_until'] = request_data['valid_until']   #date
+                    data['min_ord_val'] = request_data['min_ord_val']   #date
+                    data['max_disc_amt'] = request_data['max_disc_amt']
+                    data['create_date'] = datetime.datetime.now()
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+
+                #inserting data
+                try:
+                    data['_id'] = create_unique_object_id()
+                    database['Discount'].insert_one(data)
+                    return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Discount not inserted.'))
+            else:
+                return JsonResponse(output_format(message='Coupon code already exists.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+##### get coupon codes into admin panel
+    if request.method == 'GET':
+
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            #getting and returning all the suppliers from the db
+            try:
+                data = database['Discount'].find()
+                data = [i for i in data]
+                print(data)
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Discounts not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+
+@api_view(['POST'])
+def check_discount_code(request):
+
+##### for checking coupon codes on checkout page
+    if request.method == 'POST':
+
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            request_data = request.data.dict()
+            
+            discount = database['Discount'].find_one({'coupon_code': request_data['coupon_code']})
+
+            if discount is None:
+                return JsonResponse(output_format(message='Wrong coupon code.'))
+            
+############ errrorororororororororos hererererererwdsfwdsferdsfwed
+            if discount['valid_until'] > str(datetime.date.today()):
+                return JsonResponse(output_format(message='Coupon code expired.'))
+            
+            total_amount = float(request_data['total_amount'])
+            if total_amount > discount['min_ord_val'] :
+                appied_disc = total_amount / (discount['disc_percent'] * 0.01)
+            discount['applied_disc'] = appied_disc
+
+            #sending calculated data
+            return JsonResponse(output_format(message='Success!', data=discount))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+@api_view(['POST', 'GET'])
+def customer_order(request):
+##### place an order by customer
+    if request.method == 'POST':
+
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            try:
+                data = json.loads(request.body)     #loading body string to json data
+                print(data)
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+
+            #checking whether address exists
+            order_address = database['Ship-add'].find_one(filter={'_id':data['add_id'], 'user_id':user['_id']})
+            if order_address is None:
+                    return JsonResponse(JsonResponse(output_format(message='Address doesn\'t exist.')))
+
+            #checking whether coupon code exists
+            try:
+                order_discount = database['Discount'].find_one(filter={'_id': data['disc_id']})
+                if order_discount is None:
+                    return JsonResponse(output_format(message='Wrong coupon code.'))
+            except:
+                pass
+
+            # performing product related checks(if product exists, size available?, 
+            # qty available?, out of stock or not.)
+            for ordered_product in data['Order-details']:
+
+                product = database['Product'].find_one(
+                    filter={'_id': ordered_product['prod_id']})     #fetching product from product table
+
+                #checking wheter product exists
+                if product is None:
+                    return JsonResponse(output_format(message='Product doesn\'t exist.'))
+
+                for size, qty in ordered_product['prod_qty'].items():       #looping data from POST request
+                    available_qty = product['prod_qty'].get(size)
+
+                    if qty < 1:
+                        return JsonResponse(output_format(message='Invalid quantity.', data={'prod_id': product['_id']}))
+                    #checking size availability
+                    if available_qty is None:
+                        return JsonResponse(output_format(message='Selected size not available.'))
+
+                    #checking stock availability
+                    if available_qty >= qty:
+                        database['Product'].update_one(
+                            {'_id': product['_id']}, {'$set': {f'prod_qty.{size}': available_qty-qty}}
+                        )       #updating product qty
+                    
+                    # if stock is 0 return 'out of stock'
+                    elif available_qty == 0:
+                        return JsonResponse(output_format(message='Product out of stock.',data={'prod_id': product['_id']}))
+                    # recieved qty is more than available qty
+                    else:
+                        return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
+
+            data['order_date'] = datetime.datetime.now()
+            data['order_status'] = 'Pending'
+            
+            #inserting data
+            try:
+                data['_id'] = create_unique_object_id()
+                database['Order'].insert_one(data)
+                return JsonResponse(output_format(message='Success!'))
+            except:
+                return JsonResponse(output_format(message='Order not inserted.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+
+##### get all orders as a customer
+    elif request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            #getting and returning all the products from the db
+            try:
+
+                data = database['Order'].find({'user_id': user['_id']})
+                data = [i for i in data]
+                print(data)
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Orders not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+
+                    
 
 
 
@@ -379,6 +742,36 @@ def admin_product(request):
 
 
 
+
+
+
+
+
+# quewrty params
+    # pass
+    # print(request.query_params)
+    # print(json.dumps(request.query_params))
+    # pass
+
+# @api_view(['GET', 'POST'])
+# def send_forgot_pass_mail(request):
+
+# ##### Forgot password feature for users
+#     if request.method == 'POST':
+
+#         #fetching user details
+#         user = database['User'].find_one(filter={'email':request.email})
+#         #checking if user
+#         if user in None:
+#             return JsonResponse(output_format(message='User doesn\'t exist.'))
+        
+#         token = jwt.encode({'id': {'id':user['_id'],'role':user['role']},
+#                     'exp': datetime.datetime.now() + datetime.timedelta(
+#                         days=1)},
+#                     jwt_secret, algorithm='HS256')
+#         reset_url = f"localhost:3000/forgot-passoword/{token}/"
+
+        # f"Hello {'Raj'},\n Here is a link to reset the password for Gurukrupa Fashion Shopping Site which expires in 2 hours.\n\n\t\t{'localhost\:3000/forgot-passoword/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6eyJpZCI6IklELTY2MmY4NjFiLTZmMWQtNGMwNy05OWY0LWEwMTEzMWJmZWYzOSIsInJvbGUiOiJhZG1pbiJ9LCJleHAiOjE2NzUwMTY4NjF9.VmhDp1LnYJ2PBNaXqMP-cFmBpndxLsHSTRd8Tczzqr8/'}\nHave a nice day ahead."
 
 
 

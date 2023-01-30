@@ -82,7 +82,7 @@ def login(request):
                 #making of token
                 token = jwt.encode({'id': {'id':user['_id'],'role':user['role']},
                                     'exp': datetime.datetime.now() + datetime.timedelta(
-                                        hours=2)},
+                                        days=1)},
                                    jwt_secret, algorithm='HS256')
                 # print("hedfdfdfllo", token)
                 # time.sleep(10)

@@ -22,4 +22,13 @@ urlpatterns = [
     path('admin-category-type/', views.cat_type, name='admin-category-type'),
     path('admin-category/', views.admin_category, name='admin-category'),
     path('admin-product/', views.admin_product, name='admin-product'),
+    path('admin-purchase/', views.admin_purchase, name='admin-purchase'),
+    path('product-discount/', views.product_discount, name='product-discount'),
+
+
+
+    #customer side
+    path('customer-address/', views.customer_address, name='customer-address'),
+    path('check-discount-code/', views.check_discount_code, name='check-discount-code'),
+    path('customer-order/', views.customer_order, name='customer-order'),
 ]

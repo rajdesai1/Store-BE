@@ -21,6 +21,10 @@ class AuthenticateMiddleware:
                         'admin-category-type',
                         'admin-category',
                         'admin-product',
+                        'admin-purchase',
+                        'customer-address',
+                        'product-discount',
+                        'customer-order',
                     ]
         # One-time configuration and initialization.
 
@@ -41,10 +45,13 @@ class AuthenticateMiddleware:
 
             #decoding token
             result = AuthenticateMiddleware.has_key(token)
-            print("has_key : ", result)
+            print(JsonResponse)
+            if type(result) == JsonResponse:
+                return result
         
             if result is not None:
 
+                print("has_key : ", result)
                 #checking if expired
                 if datetime.datetime.fromtimestamp(result['exp']) > datetime.datetime.now():
                     
@@ -61,7 +68,7 @@ class AuthenticateMiddleware:
         # the view is called.
         return response
 
-    def has_key(token:str) -> bool:
+    def has_key(token:str):
         try:
             return jwt.decode(token, jwt_secret, algorithms='HS256')
         except jwt.exceptions.ExpiredSignatureError as exp_err:
