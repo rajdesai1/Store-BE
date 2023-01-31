@@ -3,9 +3,12 @@ import jwt
 from passlib.context import CryptContext
 from .db import jwt_secret, auth_collection
 from .db import database
-from Darwin.settings import FIREBASECONFIG
+from Darwin.settings import FIREBASECONFIG, MAIL_SERVICE_CONFIGS
 from django.core.files.storage import default_storage
 import pyrebase
+import smtplib
+from email.mime.text import MIMEText
+
 
 pwd_context = CryptContext(
     default="django_pbkdf2_sha256",
@@ -37,8 +40,17 @@ def output_format(status=200, message='', data={}):
     response = {"status" : status, "message":message, "data" : data}
     return response
 
-# def parse_value(val = , out=int):
-#     return out(val)
+
+# for sending mails
+def send_email(subject, body, recipients):
+    msg = MIMEText(body, _subtype='html')
+    msg['Subject'] = subject
+    msg['From'] = MAIL_SERVICE_CONFIGS['sender']
+    msg['To'] = ', '.join(recipients)
+    smtp_server = smtplib.SMTP_SSL(MAIL_SERVICE_CONFIGS['smtp_server'], MAIL_SERVICE_CONFIGS['smpt_port'])
+    smtp_server.login(MAIL_SERVICE_CONFIGS['sender'], MAIL_SERVICE_CONFIGS['password'])
+    smtp_server.sendmail(MAIL_SERVICE_CONFIGS['sender'], recipients, msg.as_string())
+    smtp_server.quit()
 
 
 def firebase_image_upload(request, id):

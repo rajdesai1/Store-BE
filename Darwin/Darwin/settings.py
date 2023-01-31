@@ -107,7 +107,7 @@ MANGO_JWT_SETTINGS = {
     "auth_collection": "User",
     "fields": ("email", "password"), # default
     "jwt_secret": "secret", # default
-    "jwt_life": 7, # default (in days)
+    "jwt_life": 2, # default (in hours)
     # "secondary_username_field": "mobile_no" # default is None
 }
 
@@ -132,7 +132,12 @@ FIREBASECONFIG = {
   "databaseURL": "https://clothing-store-2-default-rtdb.firebaseio.com/",
 }
 
-
+MAIL_SERVICE_CONFIGS = {
+    'sender' : 'gurukrupafashion90@gmail.com',
+    'password': 'odniwlwizogvkgch',
+    'smtp_server' : 'smtp.gmail.com',
+    'smtp_port': 465
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators

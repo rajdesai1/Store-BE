@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin-product/', views.admin_product, name='admin-product'),
     path('admin-purchase/', views.admin_purchase, name='admin-purchase'),
     path('product-discount/', views.product_discount, name='product-discount'),
+    path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 
 
 

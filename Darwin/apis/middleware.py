@@ -25,6 +25,7 @@ class AuthenticateMiddleware:
                         'customer-address',
                         'product-discount',
                         'customer-order',
+                        'add-to-cart',
                     ]
         # One-time configuration and initialization.
 

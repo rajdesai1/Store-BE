@@ -733,7 +733,76 @@ def customer_order(request):
             return JsonResponse(output_format(message='User not customer.'))
 
 
-                    
+@api_view(['POST', 'GET'])
+def add_to_cart(request):
+
+##### adding products to cart
+    if request.method == 'POST':
+
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+
+            try:
+                data = json.loads(request.body)     #loading body string to json data
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+
+        for added_product in data['Cart-details']:
+
+            product = database['Product'].find_one(filter={'_id': added_product['prod_id']})
+            
+            if product is None:
+                return JsonResponse(output_format(message='Product doesn\'t exist.'))
+            cart_qty = {}
+            for size, qty in added_product['prod_qty'].items():
+            
+                available_qty = product['prod_qty'].get(size)
+                if qty < 1:
+                    return JsonResponse(output_format(message='Invalid quantity.', data={'prod_id': product['_id']}))
+                #checking size availability
+                if available_qty is None:
+                    return JsonResponse(output_format(message='Selected size not available.'))
+
+                # if stock is 0 return 'out of stock'
+                if available_qty == 0:
+                    return JsonResponse(output_format(message='Product out of stock.',data={'prod_id': product['_id']}))
+                #checking stock availability
+                elif available_qty < qty:
+                    return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
+                # recieved qty is more than available qty
+                else:
+                    # cart_qty[f'Cart-detailsprod_qty.{size}'] = qty
+                    continue
+
+        user_cart = database['Cart'].find_one({'user_id': user['_id']})
+        print(cart_qty)
+        database['Cart']['Cart-details'].update_one({"_id": user['_id']},
+            {"$inc": {'total_amount': data['total_amount'], 'Cart-details': data['Cart-details']}}
+        )
+                
+
+
+        # # data['_id'] = user['_id']
+        # data['total_amount'] += user_cart['total_amount']
+
+        # if user_cart is None:
+        #     data['_id'] = user['_id']
+        #     data['Cart-details'] = {'prod_id': data['prod_id'], 'prod_qty':data['prod_qty']}
+
+        #     try:
+        #         database['Cart'].insert_one(data)
+        #     except:
+        #         return JsonResponse(output_format(message='Product not inserted.'))
+        
+        # else:
+        #     database['Product'].update_one({"_id": user['prod_id']},
+        #             {"$inc": prod_qty}
+        #         )
+            
+
 
 
 
@@ -820,4 +889,7 @@ def customer_order(request):
         # print(user_serializer.data)
 
         # print('hee')
+
+
+
 
