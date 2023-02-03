@@ -107,7 +107,7 @@ MANGO_JWT_SETTINGS = {
     "auth_collection": "User",
     "fields": ("email", "password"), # default
     "jwt_secret": "secret", # default
-    "jwt_life": 2, # default (in hours)
+    "jwt_life": 336, # default (in hours)
     # "secondary_username_field": "mobile_no" # default is None
 }
 

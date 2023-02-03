@@ -6,6 +6,7 @@ import datetime
 from apis.db import database, jwt_secret
 from django.urls import resolve
 from .utils import output_format
+import base64
 
 
 class AuthenticateMiddleware:
@@ -26,6 +27,7 @@ class AuthenticateMiddleware:
                         'product-discount',
                         'customer-order',
                         'add-to-cart',
+                        'reset-password',
                     ]
         # One-time configuration and initialization.
 
@@ -44,6 +46,8 @@ class AuthenticateMiddleware:
             except:
                 return JsonResponse(output_format(message='Token not found!'))
 
+            if view_name == 'reset-password':
+                token = base64.b64decode(token).decode()
             #decoding token
             result = AuthenticateMiddleware.has_key(token)
             print(JsonResponse)

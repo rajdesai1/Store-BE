@@ -75,7 +75,7 @@ def login(request):
                 # result = jwt.decode(token, jwt_secret, algorithms='HS256')
 
             # print("myyy result: ", result)
-                return JsonResponse(output_format(message='Success!', data={"token":token, 'role': user['role']}))
+                return JsonResponse(output_format(message='Success!', data={"token":token}))
             else:
                 return JsonResponse(output_format(message='Token not created.'))
         else:

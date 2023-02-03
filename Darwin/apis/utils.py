@@ -43,15 +43,16 @@ def output_format(status=200, message='', data={}):
 
 # for sending mails
 def send_email(subject, body, recipients):
+    print(body)
     msg = MIMEText(body, _subtype='html')
+    print(msg)
     msg['Subject'] = subject
     msg['From'] = MAIL_SERVICE_CONFIGS['sender']
     msg['To'] = ', '.join(recipients)
-    smtp_server = smtplib.SMTP_SSL(MAIL_SERVICE_CONFIGS['smtp_server'], MAIL_SERVICE_CONFIGS['smpt_port'])
+    smtp_server = smtplib.SMTP_SSL(MAIL_SERVICE_CONFIGS['smtp_server'], MAIL_SERVICE_CONFIGS['smtp_port'])
     smtp_server.login(MAIL_SERVICE_CONFIGS['sender'], MAIL_SERVICE_CONFIGS['password'])
     smtp_server.sendmail(MAIL_SERVICE_CONFIGS['sender'], recipients, msg.as_string())
     smtp_server.quit()
-
 
 def firebase_image_upload(request, id):
 
@@ -62,3 +63,4 @@ def firebase_image_upload(request, id):
         pass
 
         # default_storage.
+
