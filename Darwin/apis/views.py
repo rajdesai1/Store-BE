@@ -1320,29 +1320,57 @@ def customer_product(request, _id=None):
         
         if _id == None:
 
-            # try:
-                    data = database['Product'].aggregate(pipeline=[
+                try:
+
+                    # Aggregate for getting all products to customer side
+                    data = database['Category-type'].aggregate([
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Category",
+                                    "localField": "_id",
+                                    "foreignField": "cat_type_id",
+                                    "as": "Category"
+                                }
+                            },
+                            {
+                                "$unwind": "$Category"
+                            },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Product",
+                                    "localField": "Category._id",
+                                    "foreignField": "cat_id",
+                                    "as": "Product"
+                                }
+                            },
+                            {
+                            "$unwind": "$Product"
+                            },
                         {
-                        "$project": {
-                            "_id":1,
-                            "prod_name":1,
-                            "cat_id":1,
-                            "prod_desc":1,
-                            "prod_price":1,
-                            "prod_image": {"$arrayElemAt": ['$prod_image', 0]}
-                            }         
-                        }
-                        ])
-                    pass
-                    pass
+                            "$project":
+                            {
+                                "_id": "$Product._id",
+                                "prod_name": "$Product.prod_name",
+                                "prod_desc": "$Product.prod_desc",
+                                "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
+                                "prod_price": "$Product.prod_price",
+                                "cat_id" : "$Product.cat_id",
+                                "cat_title": "$Category.cat_title",
+                                "cat_type_id": "$Category.cat_type_id",
+                                "cat_type": "$cat_type",
+                                
+                            }
+                        }])
                     data = [i for i in data]
-                    print(data[10])
+
+                    #shuffling the data using random module's shuffle
                     random.shuffle(data)
-                    print(data[10])
                     # print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
-            # except:
-                    # return JsonResponse(output_format(message='Discounts not fetched.'))
+                except:
+                    return JsonResponse(output_format(message='Products not fetched.'))
 
 
 
