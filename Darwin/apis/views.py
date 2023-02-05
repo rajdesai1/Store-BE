@@ -1252,7 +1252,7 @@ def product_discount(request, _id=None):
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
             
-            request_data = request.data.dict()
+            request_data = request.data
             data = {}
             #checking if cat_type already exists
             if database['Discount'].find_one({'coupon_code': request_data['coupon_code']}) is None:
