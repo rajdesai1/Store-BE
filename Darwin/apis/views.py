@@ -613,7 +613,7 @@ def admin_product(request, _id=None):
                 data = {}
                 data['prod_name'] = request.POST['prod_name']
                 data['cat_id'] = request.POST['cat_id']
-                data['active'] = True if request.POST['active'] == 'true' or 'True' else False
+                data['active'] = True if request.POST['active'] in ('true' or 'True') else False
                 data['prod_desc'] = request.POST['prod_desc']
                 data['created_at'] = datetime.datetime.now()
                 data['prod_price'] = float(request.POST['prod_price'])
@@ -765,6 +765,7 @@ def admin_product(request, _id=None):
                 try:
                     data = request.POST.get()
                     print(data)
+                    
                     update = {}
                     if data.get('prod_price') is not None:
                         data['prod_price'] =  float(request.POST['prod_price'])
@@ -774,6 +775,33 @@ def admin_product(request, _id=None):
                         update["$pull"] = { "prod_image": {"$inc": {'prod_image': [data.get('prod_image')]}} }
                         data.pop('prod_image')
                     update['$set'] = data
+
+                    #renaming all product images and uploading to firebase
+                    try:
+                        next(request.FILES.values())
+                        firebase = pyrebase.initialize_app(FIREBASECONFIG)
+                        storage = firebase.storage()
+                    except:
+                        pass
+                    
+                    #updating data
+                    for i, file in enumerate(request.FILES.values()):
+                        filename, fileextension = os.path.splitext(file.name)
+                        if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
+                            return JsonResponse(output_format(message='Uploaded file is not an image.'))
+                        
+                        new_name = f"{prod_id}-{str(i)}{fileextension}"
+                        file.name = new_name
+                        default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
+                        
+                        #uploading here
+                        try:
+                            storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
+                            default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
+                            image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
+                            data['prod_image'].append(image_url)
+                        except:
+                            return JsonResponse(output_format(message='Cloud upload failed.'))    
 
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
@@ -1149,6 +1177,14 @@ def admin_purchase(request, _id=None):
                     prod_qty = {}
                     
                     for purchased_product in data['Purchase-details']:
+                        
+                        
+                        for prod in purchased_product.items():
+                            
+                            prod = database['Product'].find_one({'_id': prod['prod_id'], "is_deleted": False})
+                            if prod is None:
+                                return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                            
 
                         product = database['Product'].find_one(
                             filter={'_id': purchased_product['prod_id']})     #fetching product from product table
@@ -1158,12 +1194,12 @@ def admin_purchase(request, _id=None):
                             return JsonResponse(output_format(message='Product doesn\'t exist.'))
                         
                         
-                            for purchase_product  in purchase['Purchase-details']:
-                                prod_qty[f'prod_qty.{size}'] = qty
-                            print(prod_qty)
-                            database['Product'].update_one({"_id": product_details['prod_id']},
-                            {"$inc": prod_qty}
-                            )
+                            # for purchase_product  in purchase['Purchase-details']:
+                            #     prod_qty[f'prod_qty.{size}'] = qty
+                            # print(prod_qty)
+                            # database['Product'].update_one({"_id": product_details['prod_id']},
+                            # {"$inc": prod_qty}
+                            # )
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
                 
@@ -1718,45 +1754,21 @@ def customer_product(request, _id=None):
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
                     return JsonResponse(output_format(message='Products not fetched.'))
+        # single product data fetch            
         else:
-            # Aggregate for getting all products to customer side
-            
-            out = database['Category-type'].aggregate([{
-                            '$lookup':{
-                                'from':'Product',
-                                'localField':'_id',
-                                'foreignField':'cat_id',
-                                'as':'Product'
-                            }
-                        },
-                        {
-                            '$unwind':'$Product'
-                        },
-                        {
-                                "$match": { "Product._id": _id, 'is_deleted': False, 'Product.is_deleted': False,
-                                           'Product.active': True, 'active': True}
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Product._id',
-                                'prod_name': '$Product.prod_name',
-                                'cat_id':'$_id',
-                                'cat_title': '$cat_title',
-                                'active': '$Product.active',
-                                'prod_price': '$Product.prod_price',
-                                'prod_qty': '$Product.prod_qty',
-                                'prod_desc': '$Product.prod_desc',
-                                'created_at': '$Product.created_at',
-                                'prod_image': '$Product.prod_image',
-                            }
-                        }
-                    ])
-            
             try:
-                data = out.next()
-                return JsonResponse(output_format(message='Success!', data=data))
+                data = database['Product'].find_one(filter={"_id": _id,'is_deleted': False, 'active': True}, 
+                                                projection={'is_deleted':0, 'active':0})
+                if data is not None:
+                    return JsonResponse(output_format(message='Success!', data=data)) 
+                else:
+                    return JsonResponse(output_format(message='Product not found!'))
             except:
-                raise JsonResponse(output_format(message='Product not fetched.'))
+                return JsonResponse(output_format(message='Product not fetched.'))
+            #     data = out.next()
+            #     return JsonResponse(output_format(message='Success!', data=data))
+            # except:
+            #     return JsonResponse(output_format(message='Product not fetched.'))
             
 
             # send_email()
