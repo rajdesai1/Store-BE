@@ -31,7 +31,7 @@ urlpatterns = [
     path('admin-category/', views.admin_category, name='admin-category'),
     path('admin-category/<str:_id>/', views.admin_category, name='admin-category'),     #done   #patch  #delete
 
-    path('admin-cat-type-to-category/<str:_id>', views.admin_cat_type_to_category, name='admin-cat-type-to-category'),
+    path('admin-cat-type-to-category/<str:_id>/', views.admin_cat_type_to_category, name='admin-cat-type-to-category'),
     
     path('admin-product/', views.admin_product, name='admin-product'),
     path('admin-product/<str:_id>/', views.admin_product, name='admin-product'),    #done   #patch  #delete

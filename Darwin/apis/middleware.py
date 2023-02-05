@@ -28,6 +28,7 @@ class AuthenticateMiddleware:
                         'customer-order',
                         'add-to-cart',
                         'reset-password',
+                        'admin-cat-type-to-category',
                     ]
         # One-time configuration and initialization.
 
