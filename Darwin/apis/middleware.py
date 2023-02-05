@@ -50,7 +50,7 @@ class AuthenticateMiddleware:
                 token = base64.b64decode(token).decode()
             #decoding token
             result = AuthenticateMiddleware.has_key(token)
-            print(JsonResponse)
+
             if type(result) == JsonResponse:
                 return result
         

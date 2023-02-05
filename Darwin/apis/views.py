@@ -22,7 +22,7 @@ def myview(request):
     # url = reverse('view_post', args=[23425678])
     # print(url)
     
-    return HttpResponse("<h1>Hah! Got'eem.</h1>")
+    return HttpResponse("<h1 style='font-size: 100px; font-family:system-ui;'>Hah! Nothing here.</h1>")
 
 
 @api_view(['GET'])
@@ -67,14 +67,14 @@ def change_password(request):
 def navbar_shop_category(request):
 
     
-        cats = database['Category-type'].find()
+        cats = database['Category-type'].find({'is_deleted': False, 'active': True}, {"is_deleted": 0})
         out = [i for i in cats]
         print(out)
         print('s')
         return JsonResponse(output_format(data=out))
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'DELETE', 'PATCH'])
 def supplier(request, _id=None):
 
 ##### for adding suppliers from admin panel(one supplier)
@@ -85,11 +85,14 @@ def supplier(request, _id=None):
 
         # checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
-            data = request.data
+            data = request.data.dict()
 
             # converting fields into int
             try:
+                print(data['mobile_no'])
                 data['mobile_no'] = int(data['mobile_no'])
+                print(data['pincode'])
+                
                 data['pincode'] = int(data['pincode'])
             except:
                 return JsonResponse(output_format(message='Wrong data format.'))
@@ -97,6 +100,7 @@ def supplier(request, _id=None):
             #inserting data
             try:
                 data['_id'] = create_unique_object_id()
+                data['is_deleted'] = False
                 database['Supplier'].insert_one(data)
             except:
                 return JsonResponse(output_format(message='Supplier not inserted.'))
@@ -109,42 +113,102 @@ def supplier(request, _id=None):
 ##### for fetching suppliers in admin panel      
     elif request.method == 'GET':
 
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
-            #fetching user data
-            user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
 
-            #checking if user is admin
-            if user['role'] == 'admin' and user['_id'] == request.id:
+            # checking for path parameters
+            if _id == None:
 
-                # checking for path parameters
-                if _id == None:
+                #getting and returning all the suppliers from the db
+                try:
+                    data = database['Supplier'].find({"is_deleted" : False}, {"is_deleted": 0})
+                    data = [i for i in data]
+                    print(data)
+                    return JsonResponse(output_format(message='Success!', data=data))
+                except:
+                    return JsonResponse(output_format(message='Suppliers not fetched.'))
 
-                    #getting and returning all the suppliers from the db
-                    try:
-                        data = database['Supplier'].find()
-                        data = [i for i in data]
-                        print(data)
-                        return JsonResponse(output_format(message='Success!', data=data))
-                    except:
-                        return JsonResponse(output_format(message='Suppliers not fetched.'))
-
-                # path parameter available
-                else:
-                    try:
-                        data = database['Supplier'].find_one({'_id': _id})
-                        if data is None:
-                            return JsonResponse(output_format(message='Supplier dosen\'t exist.'))
-                        else:
-                            return JsonResponse(output_format(message='Success!', data=data))
-                    except:
-                        return JsonResponse(output_format(message='Supplier not fetched.'))
+            # path parameter available
             else:
-                return JsonResponse(output_format(message='User not admin.'))
-        
+                try:
+                    data = database['Supplier'].find_one({'_id': _id, 'is_deleted': False}, {"is_deleted": 0})
+                    if data is None:
+                        return JsonResponse(output_format(message='Supplier dosen\'t exist.'))
+                    else:
+                        return JsonResponse(output_format(message='Success!', data=data))
+                except:
+                    return JsonResponse(output_format(message='Supplier not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+##### delete supplier from admin panel
+    elif request.method == 'DELETE':
+
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Supplier id not received.'))
+            else:
+                supplier = database['Supplier'].find_one({'_id': _id, "is_deleted": False})
+                if supplier is None:
+                    return JsonResponse(output_format(message='Supplier not found.'))
+                
+                purchase = database['Purchase'].find_one({'supp_id': _id})
+                pass
+                if purchase is not None:
+                    return JsonResponse(output_format(message='Supplier not deleted. Associated purchases present.'))
+                else:
+                    database['Supplier'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
+                    return JsonResponse(output_format(message='Success!'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+##### updating supplier details from admin panel   
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Supplier id not received.'))
+
+            else:
+                supplier = database['Supplier'].find_one({'_id': _id, "is_deleted": False})
+                if supplier is None:
+                    return JsonResponse(output_format(message='Supplier not found.'))
+                try:
+                    data = request.data.dict()
+                    print(data)
+                    if data.get('mobile_no') is not None:
+                        data['mobile_no'] = int(data['mobile_no'])
+                    if data.get('pincode') is not None:
+                        data['pincode'] = int(data['pincode'])
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                try:
+                    result = database['Supplier'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
 
 
 
-@api_view(['POST', 'GET'])
+@api_view(['POST', 'GET','DELETE', 'PATCH'])
 def cat_type(request, _id=None):
 
 ##### for adding category type from admin panel
@@ -170,6 +234,7 @@ def cat_type(request, _id=None):
                 #inserting data
                 try:
                     data['_id'] = create_unique_object_id()
+                    data['is_deleted'] = False
                     database['Category-type'].insert_one(data)
                     return JsonResponse(output_format(message='Success!'))
                 except:
@@ -193,7 +258,7 @@ def cat_type(request, _id=None):
 
                 #getting and returning all the category-type from the db
                 try:
-                    data = database['Category-type'].find()
+                    data = database['Category-type'].find({'is_deleted' : False}, {"is_deleted": 0})
                     data = [i for i in data]
                     print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
@@ -203,7 +268,7 @@ def cat_type(request, _id=None):
             # path parameter available
             else:
                 try:
-                    data = database['Category-type'].find_one({'_id': _id})
+                    data = database['Category-type'].find_one({'_id': _id, 'is_deleted' : False}, {"is_deleted": 0})
                     if data is None:
                         return JsonResponse(output_format(message='Category-type dosen\'t exist.'))
                     else:
@@ -212,9 +277,69 @@ def cat_type(request, _id=None):
                     return JsonResponse(output_format(message='Category-type not fetched.'))    
         else:
             return JsonResponse(output_format(message='User not admin.'))
+    
+##### delete category-type from admin panel
+    elif request.method == 'DELETE':
 
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
-@api_view(['POST', 'GET'])
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category-type id not received.'))
+            else:
+                category_type = database['Category-type'].find_one({'_id': _id, "is_deleted": False})
+                if category_type is None:
+                    return JsonResponse(output_format(message='Category-type not found.'))
+                
+                category = database['Category'].find_one({'cat_type_id': _id, "is_deleted": False})
+                
+                if category is not None:
+                    return JsonResponse(output_format(message='Category-type not deleted. Associated category present.'))
+                else:
+                    database['Category-type'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
+                    return JsonResponse(output_format(message='Success!'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+##### updating category-type from admin panel   
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category-type id not received.'))
+
+            else:
+                category_type = database['Category-type'].find_one({'_id': _id, "is_deleted": False})
+                if category_type is None:
+                    return JsonResponse(output_format(message='Category-type not found.'))
+                try:
+                    data = request.data.dict()
+                    print(data)
+                    if data.get('active') is not None:
+                        data['active'] =  True if (data['active'] in ('true','True')) else False
+
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                try:
+                    result = database['Category-type'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+@api_view(['POST', 'GET', 'DELETE', 'PATCH'])
 def admin_category(request, _id=None):
 
 ##### for adding category from admin panel
@@ -248,6 +373,7 @@ def admin_category(request, _id=None):
                 #inserting data
                 try:
                     data['_id'] = create_unique_object_id()
+                    data['is_deleted'] = False
                     database['Category'].insert_one(data)
                     return JsonResponse(output_format(message='Success!'))
                 except:
@@ -281,14 +407,16 @@ def admin_category(request, _id=None):
                             '$unwind':'$Category'
                         },
                         {
+                            "$match": {'Category.is_deleted': False, 'is_deleted': False}
+                        },
+                        {
                             '$project': {
                                 '_id':'$Category._id',
                                 'cat_type_id': '$_id',
                                 'cat_type': '$cat_type',
                                 'active': '$Category.active',
                                 'cat_title': '$Category.cat_title',
-                                'cat_desc': "$Category.cat_desc"
-
+                                'cat_desc': "$Category.cat_desc",
                             }
                         }
                     ]
@@ -296,6 +424,8 @@ def admin_category(request, _id=None):
                     data = database['Category-type'].aggregate(pipeline=pipeline)
                     data = [i for i in data]
                     print(data)
+                    print(len(data))
+
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
                     return JsonResponse(output_format(message='Category not fetched.'))
@@ -313,7 +443,7 @@ def admin_category(request, _id=None):
                             },
                             { "$unwind": "$Category" },
                             {
-                            "$match": { "Category._id": _id }
+                            "$match": { "Category._id": _id, 'is_deleted': False, 'Category.is_deleted': False }
                             },
                             {
                                 "$project": {
@@ -338,9 +468,127 @@ def admin_category(request, _id=None):
                     return JsonResponse(output_format(message='Category not fetched.'))
         else:
             return JsonResponse(output_format(message='User not admin.'))
+        
+    elif request.method == 'DELETE':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category id not received.'))
+            else:
+                category_type = database['Category'].find_one({'_id': _id, "is_deleted": False})
+                if category_type is None:
+                    return JsonResponse(output_format(message='Category not found.'))
+                
+                product = database['Product'].find_one({'cat_id': _id, "is_deleted": False})
+                
+                if product is not None:
+                    return JsonResponse(output_format(message='Category not deleted. Associated product present.'))
+                else:
+                    database['Category'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
+                    return JsonResponse(output_format(message='Success!'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category id not received.'))
+
+            else:
+                category = database['Category'].find_one({'_id': _id, "is_deleted": False})
+                if category is None:
+                    return JsonResponse(output_format(message='Category not found.'))
+                try:
+                    data = request.data.dict()
+                    print(data)
+                    if data.get('active') is not None:
+                        data['active'] =  True if (data['active'] in ('true','True')) else False
+
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                try:
+                    result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
 
 
-@api_view(['POST', 'GET'])
+@api_view(['GET'])
+def admin_cat_type_to_category(request, _id=None):
+    
+##### for getting categories using category type from admin panel
+    if request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category-type id not received.'))
+            else:
+                
+                if database['Category-type'].find_one({'_id': _id, 'is_deleted' : False}, {"is_deleted": 0}) is None:
+                    return JsonResponse(output_format(message='Category-type dosen\'t exist.'))
+                
+                out = database["Category-type"].aggregate(
+                    [
+                        {
+                            "$lookup": {
+                                "from": "Category",
+                                "localField": "_id",
+                                "foreignField": "cat_type_id",
+                                "as": "Category",
+                            }
+                        },
+                        {"$match": {"_id": _id, "is_deleted": False, "Category.is_deleted": False}},
+                        {
+                            "$project": {
+                                "_id": 1,
+                                "cat_type": 1,
+                                "Category": {
+                                    "$map": {
+                                        "input": "$Category",
+                                        "as": "catgory",
+                                        "in": {
+                                            "cat_id": "$$catgory._id",
+                                            "cat_title": "$$catgory.cat_title",
+                                            "is_deleted": "$$catgory.is_deleted",
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                    ]
+                )
+                
+                try:
+                    data = out.next()
+                    return JsonResponse(output_format(message='Success!', data=data))
+                except:
+                    raise JsonResponse(output_format(message='Categories not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+                
+
+@api_view(['POST', 'GET', 'PATCH'])
 def admin_product(request, _id=None):
 
 ##### for uploading products from admin panel
@@ -368,7 +616,7 @@ def admin_product(request, _id=None):
                 data['active'] = True if request.POST['active'] == 'true' or 'True' else False
                 data['prod_desc'] = request.POST['prod_desc']
                 data['created_at'] = datetime.datetime.now()
-                data['prod_price'] = int(request.POST['prod_price'])
+                data['prod_price'] = float(request.POST['prod_price'])
                 data['prod_qty'] = {}
                 data['prod_image'] = []
 
@@ -396,6 +644,7 @@ def admin_product(request, _id=None):
             #and finally inserting product to the db
             try:
                     data['_id'] = prod_id
+                    data['is_deleted'] = False
                     database['Product'].insert_one(data)
                     return JsonResponse(output_format(message='Success!'))
             except:
@@ -405,7 +654,7 @@ def admin_product(request, _id=None):
 
 
 ##### for getting products into admin panel
-    if request.method == 'GET':
+    elif request.method == 'GET':
         #fetching user data
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
@@ -428,11 +677,14 @@ def admin_product(request, _id=None):
                             '$unwind':'$Product'
                         },
                         {
+                            "$match": {'Product.is_deleted': False, 'is_deleted': False}
+                        },
+                        {
                             '$project': {
                                 '_id': '$Product._id',
                                 'prod_name': '$Product.prod_name',
                                 'cat_id':'$_id',
-                                'cat_type': '$cat_title',
+                                'cat_title': '$cat_title',
                                 'active': '$Product.active',
                                 'prod_price': '$Product.prod_price',
                                 'prod_qty': '$Product.prod_qty',
@@ -465,14 +717,14 @@ def admin_product(request, _id=None):
                             '$unwind':'$Product'
                         },
                         {
-                                "$match": { "Product._id": _id }
+                                "$match": { "Product._id": _id, 'is_deleted': False, 'Product.is_deleted': False }
                         },
                         {
                             '$project': {
                                 '_id': '$Product._id',
                                 'prod_name': '$Product.prod_name',
                                 'cat_id':'$_id',
-                                'cat_type': '$cat_title',
+                                'cat_title': '$cat_title',
                                 'active': '$Product.active',
                                 'prod_price': '$Product.prod_price',
                                 'prod_qty': '$Product.prod_qty',
@@ -495,178 +747,240 @@ def admin_product(request, _id=None):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
-
-
-
-
-
-
-
-# @api_view(['POST', 'GET'])
-# def admin_product(request, _id=None):
-
-##### for uploading products from admin panel
-    if request.method == 'POST':
-        user = database['User'].find_one(filter={'_id':request.id})
+    elif request.method == 'PATCH':
+        
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
-            print(request.body)
-            pass
-            data = json.loads(request.body)
-            pass
-            #checking whether category exists or not
-            if database['Category'].find_one({'_id': data['cat_id']}) is None:
-                return JsonResponse(output_format(message='Category doesn\'t exist.'))
 
-            #connecting to the firebase
-            # firebase = pyrebase.initialize_app(FIREBASECONFIG)
-            # storage = firebase.storage()
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category id not received.'))
+            else:
+                product = database['Category'].find_one({'_id': _id, "is_deleted": False})
+                if product is None:
+                    return JsonResponse(output_format(message='Category not found.'))
+                try:
+                    data = request.POST.get()
+                    print(data)
+                    update = {}
+                    if data.get('prod_price') is not None:
+                        data['prod_price'] =  float(request.POST['prod_price'])
+                    if data.get('active') is not None:
+                        data['active'] =  True if (data['active'] in ('true','True')) else False
+                    if data.get('prod_image') is not None:
+                        update["$pull"] = { "prod_image": {"$inc": {'prod_image': [data.get('prod_image')]}} }
+                        data.pop('prod_image')
+                    update['$set'] = data
+
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                try:
+                    result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+    if request.method == 'DELETE':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Product id not received.'))
+            else:
+                product = database['Product'].find_one({'_id': _id, "is_deleted": False})
+                if product is None:
+                    return JsonResponse(output_format(message='Product not found.'))
+                
+                # product = database['Product'].find_one({'cat_type_id': _id})
+                
+                # if product is not None:
+                #     return JsonResponse(output_format(message='Category-type not deleted. Associated category present.'))
+                # else:
+                database['Product'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
+                return JsonResponse(output_format(message='Success!'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+
+
+
+
+# # @api_view(['POST', 'GET'])
+# # def admin_product(request, _id=None):
+
+# ##### for uploading products from admin panel
+#     if request.method == 'POST':
+#         user = database['User'].find_one(filter={'_id':request.id})
+
+#         #checking if user is admin
+#         if user['role'] == 'admin' and user['_id'] == request.id:
+#             print(request.body)
+#             pass
+#             data = json.loads(request.body)
+#             pass
+#             #checking whether category exists or not
+#             if database['Category'].find_one({'_id': data['cat_id']}) is None:
+#                 return JsonResponse(output_format(message='Category doesn\'t exist.'))
+
+#             #connecting to the firebase
+#             # firebase = pyrebase.initialize_app(FIREBASECONFIG)
+#             # storage = firebase.storage()
     
 
-            #preparing data dict to upload into the db
-            try:
-                print(data)
-                prod_id = create_unique_object_id()
-                data['prod_name'] = data['prod_name']
-                data['cat_id'] = data['cat_id']
-                data['active'] = data['active']
-                data['prod_desc'] = data['prod_desc']
-                data['created_at'] = datetime.datetime.now()
-                data['prod_price'] = int(data['prod_price'])
-                data['prod_qty'] = {}
-                filelinks = data['prod_image']
-                data['prod_image'] = []
+#             #preparing data dict to upload into the db
+#             try:
+#                 print(data)
+#                 prod_id = create_unique_object_id()
+#                 data['prod_name'] = data['prod_name']
+#                 data['cat_id'] = data['cat_id']
+#                 data['active'] = data['active']
+#                 data['prod_desc'] = data['prod_desc']
+#                 data['created_at'] = datetime.datetime.now()
+#                 data['prod_price'] = int(data['prod_price'])
+#                 data['prod_qty'] = {}
+#                 filelinks = data['prod_image']
+#                 data['prod_image'] = []
 
-                #renaming all product images and uploading to firebase
-                for i, filelink in enumerate(filelinks):
-
-                    
-                    fileextension = filelink.split('.')[-1]
-                    if fileextension not in ['png', 'jpg', 'jpeg', 'webp']:
-                        return JsonResponse(output_format(message='Uploaded file is not an image.'))
-                    
-                    response = requests.get(filelink)
-
+#                 #renaming all product images and uploading to firebase
+#                 for i, filelink in enumerate(filelinks):
 
                     
-                    new_name = f"{prod_id}-{str(i)}.{fileextension}"
-                    with open(f'mediafiles/{new_name}', "wb") as f:
-                        f.write(response.content)
-                    # default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
+#                     fileextension = filelink.split('.')[-1]
+#                     if fileextension not in ['png', 'jpg', 'jpeg', 'webp']:
+#                         return JsonResponse(output_format(message='Uploaded file is not an image.'))
                     
-                    #uploading here
-                    try:
-                        storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
-                        default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
-                        image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
-                        data['prod_image'].append(image_url)
-                    except:
-                        return JsonResponse(output_format(message='Cloud upload failed.'))    
-            except:
-                return JsonResponse(output_format(message='Wrong data format.'))
+#                     response = requests.get(filelink)
+
+
+                    
+#                     new_name = f"{prod_id}-{str(i)}.{fileextension}"
+#                     with open(f'mediafiles/{new_name}', "wb") as f:
+#                         f.write(response.content)
+#                     # default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
+                    
+#                     #uploading here
+#                     try:
+#                         storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
+#                         default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
+#                         image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
+#                         data['prod_image'].append(image_url)
+#                     except:
+#                         return JsonResponse(output_format(message='Cloud upload failed.'))    
+#             except:
+#                 return JsonResponse(output_format(message='Wrong data format.'))
             
-            #and finally inserting product to the db
-            try:
-                    data['_id'] = prod_id
-                    database['Product'].insert_one(data)
-                    return JsonResponse(output_format(message='Success!'))
-            except:
-                    return JsonResponse(output_format(message='Category not inserted.'))
-        else:
-            return JsonResponse(output_format(message='User not admin.'))
+#             #and finally inserting product to the db
+#             try:
+#                     data['_id'] = prod_id
+#                     data['is_deleted'] = False
+#                     database['Product'].insert_one(data)
+#                     return JsonResponse(output_format(message='Success!'))
+#             except:
+#                     return JsonResponse(output_format(message='Category not inserted.'))
+#         else:
+#             return JsonResponse(output_format(message='User not admin.'))
 
 
-##### for getting products into admin panel
-    if request.method == 'GET':
-        #fetching user data
-        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+# ##### for getting products into admin panel
+#     if request.method == 'GET':
+#         #fetching user data
+#         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
-        #checking if user is admin
-        if user['role'] == 'admin' and user['_id'] == request.id:
+#         #checking if user is admin
+#         if user['role'] == 'admin' and user['_id'] == request.id:
 
-            # checking for path parameters
-            if _id == None:
-                #getting and returning all the products from the db
-                try:
-                    pipeline = [{
-                            '$lookup':{
-                                'from':'Product',
-                                'localField':'_id',
-                                'foreignField':'cat_id',
-                                'as':'Product'
-                            }
-                        },
-                        {
-                            '$unwind':'$Product'
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Product._id',
-                                'prod_name': '$Product.prod_name',
-                                'cat_id':'$_id',
-                                'cat_type': '$cat_title',
-                                'active': '$Product.active',
-                                'prod_price': '$Product.prod_price',
-                                'prod_qty': '$Product.prod_qty',
-                                'prod_desc': '$Product.prod_desc',
-                                'created_at': '$Product.created_at',
-                                'prod_image': '$Product.prod_image',
-                            }
-                        }
-                    ]
+#             # checking for path parameters
+#             if _id == None:
+#                 #getting and returning all the products from the db
+#                 try:
+#                     pipeline = [{
+#                             '$lookup':{
+#                                 'from':'Product',
+#                                 'localField':'_id',
+#                                 'foreignField':'cat_id',
+#                                 'as':'Product'
+#                             }
+#                         },
+#                         {
+#                             '$unwind':'$Product'
+#                         },
+#                         {
+#                             '$project': {
+#                                 '_id': '$Product._id',
+#                                 'prod_name': '$Product.prod_name',
+#                                 'cat_id':'$_id',
+#                                 'cat_type': '$cat_title',
+#                                 'active': '$Product.active',
+#                                 'prod_price': '$Product.prod_price',
+#                                 'prod_qty': '$Product.prod_qty',
+#                                 'prod_desc': '$Product.prod_desc',
+#                                 'created_at': '$Product.created_at',
+#                                 'prod_image': '$Product.prod_image',
+#                             }
+#                         }
+#                     ]
 
-                    data = database['Category'].aggregate(pipeline=pipeline)
-                    data = [i for i in data]
-                    print(data)
-                    return JsonResponse(output_format(message='Success!', data=data))
-                except:
-                    return JsonResponse(output_format(message='Products not fetched.'))
+#                     data = database['Category'].aggregate(pipeline=pipeline)
+#                     data = [i for i in data]
+#                     print(data)
+#                     return JsonResponse(output_format(message='Success!', data=data))
+#                 except:
+#                     return JsonResponse(output_format(message='Products not fetched.'))
             
-            # path parameter available
-            else:
-                try:                
-                    pipeline = [{
-                            '$lookup':{
-                                'from':'Product',
-                                'localField':'_id',
-                                'foreignField':'cat_id',
-                                'as':'Product'
-                            }
-                        },
-                        {
-                            '$unwind':'$Product'
-                        },
-                        {
-                                "$match": { "Product._id": _id }
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Product._id',
-                                'prod_name': '$Product.prod_name',
-                                'cat_id':'$_id',
-                                'cat_type': '$cat_title',
-                                'active': '$Product.active',
-                                'prod_price': '$Product.prod_price',
-                                'prod_qty': '$Product.prod_qty',
-                                'prod_desc': '$Product.prod_desc',
-                                'created_at': '$Product.created_at',
-                                'prod_image': '$Product.prod_image',
-                            }
-                        }
-                    ]
+#             # path parameter available
+#             else:
+#                 try:                
+#                     pipeline = [{
+#                             '$lookup':{
+#                                 'from':'Product',
+#                                 'localField':'_id',
+#                                 'foreignField':'cat_id',
+#                                 'as':'Product'
+#                             }
+#                         },
+#                         {
+#                             '$unwind':'$Product'
+#                         },
+#                         {
+#                                 "$match": { "Product._id": _id }
+#                         },
+#                         {
+#                             '$project': {
+#                                 '_id': '$Product._id',
+#                                 'prod_name': '$Product.prod_name',
+#                                 'cat_id':'$_id',
+#                                 'cat_type': '$cat_title',
+#                                 'active': '$Product.active',
+#                                 'prod_price': '$Product.prod_price',
+#                                 'prod_qty': '$Product.prod_qty',
+#                                 'prod_desc': '$Product.prod_desc',
+#                                 'created_at': '$Product.created_at',
+#                                 'prod_image': '$Product.prod_image',
+#                             }
+#                         }
+#                     ]
   
-                    data = database['Category'].aggregate(pipeline=pipeline)
-                    if list(data) != []:
-                        data = list(data)
-                        print(list(data)[0])
-                        return JsonResponse(output_format(message='Product dosen\'t exist.'))
-                    else:
-                        return JsonResponse(output_format(message='Success!', data=data[0]))
-                except:
-                    return JsonResponse(output_format(message='Product not fetched.'))
-        else:
-            return JsonResponse(output_format(message='User not admin.'))
+#                     data = database['Category'].aggregate(pipeline=pipeline)
+#                     if list(data) != []:
+#                         data = list(data)
+#                         print(list(data)[0])
+#                         return JsonResponse(output_format(message='Product dosen\'t exist.'))
+#                     else:
+#                         return JsonResponse(output_format(message='Success!', data=data[0]))
+#                 except:
+#                     return JsonResponse(output_format(message='Product not fetched.'))
+#         else:
+#             return JsonResponse(output_format(message='User not admin.'))
 
 
 
@@ -682,7 +996,7 @@ def admin_product(request, _id=None):
 
 
 
-@api_view(['POST', 'GET'])
+@api_view(['POST', 'GET', 'PATCH'])
 def admin_purchase(request, _id=None):
 
 ##### for uploading purchased products from admin panel
@@ -695,12 +1009,13 @@ def admin_purchase(request, _id=None):
             
             try:
                 data = json.loads(request.body)     #loading body string to json data
+                data['date'] = datetime.datetime.strptime(data['date'], '%Y-%m-%dT%H:%M:%S.%fZ')
             except:
                 return JsonResponse(output_format(message='Wrong data format.'))
 
             #checking whether supplier exists
-            if database['Supplier'].find_one({'_id':data['supp_id']}) is None:
-                return JsonResponse(output_format(message='Supplier doesn\'nt exist.'))
+            if database['Supplier'].find_one({'_id':data['supp_id'], "is_deleted": False}) is None:
+                return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
             
             #processing Purchase details
             for product_details in data['Purchase-details']:
@@ -802,6 +1117,56 @@ def admin_purchase(request, _id=None):
                     return JsonResponse(output_format(message='Success!', data=data[0]))
         else:
             return JsonResponse(output_format(message='User not admin.'))
+    
+#purchase
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Purchase id not received.'))
+            
+            # if id is receivied
+            else:
+                purchase = database['Purchase'].find_one({'_id': _id})
+                if purchase is None:
+                    return JsonResponse(output_format(message='Purchase not found.'))
+                try:
+                    
+                    data = json.loads(request.body)     #loading body string to json data
+                    if data.get('date') is not None:
+                        data['date'] = datetime.datetime.strptime(data['date'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                    if data.get('supp_id') is not None:
+                        #checking whether supplier exists
+                        if database['Supplier'].find_one({'_id':data['supp_id'], "is_deleted": False}) is None:
+                            return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
+                    
+                    #adding purchased qty to the existing product
+                    prod_qty = {}
+                    
+                    for purchased_product in data['Purchase-details']:
+
+                        product = database['Product'].find_one(
+                            filter={'_id': purchased_product['prod_id']})     #fetching product from product table
+
+                        #checking whether product exists
+                        if product is None:
+                            return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                        
+                        
+                            for purchase_product  in purchase['Purchase-details']:
+                                prod_qty[f'prod_qty.{size}'] = qty
+                            print(prod_qty)
+                            database['Product'].update_one({"_id": product_details['prod_id']},
+                            {"$inc": prod_qty}
+                            )
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
 
 
 @api_view(['POST', 'GET'])
@@ -833,6 +1198,7 @@ def customer_address(request, _id=None):
             #inserting data
             try:
                 data['_id'] = create_unique_object_id()
+                data['is_deleted'] = False
                 database['Ship-add'].insert_one(data)
                 return JsonResponse(output_format(message='Success!'))
             except:
@@ -852,33 +1218,7 @@ def customer_address(request, _id=None):
             if _id == None:
                 #getting and returning all the products from the db
                 try:
-                    # pipeline = [{
-                    #         '$lookup':{
-                    #             'from':'Ship-add',
-                    #             'localField':'_id',
-                    #             'foreignField':'user_id',
-                    #             'as':'Ship-add'
-                    #         }
-                    #     },
-                    #     {
-                    #         '$unwind':'$Ship-add'
-                    #     },
-                    #     {
-                    #         '$project': {
-                    #             '_id': '$Ship-add._id',
-                    #             'user_name': '$name',    #user name
-                    #             'user_id': '$_id',
-                    #             'house_no': '$Ship-add.house_no',
-                    #             'area_street': '$Ship-add.area_street',
-                    #             'city':'$Ship-add.city',
-                    #             'state': '$Ship-add.state',
-                    #             'pincode': '$Ship-add.pincode',
-                    #             'add_type': '$Ship-add.add_type'
-                    #         }
-                    #     }
-                    # ]
-
-                    data = database['Ship-add'].find({"user_id": user['_id']})
+                    data = database['Ship-add'].find({"user_id": user['_id'], 'is_deleted': False}, {"is_deleted": 0})
                     data = [i for i in data]
                     print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
@@ -888,7 +1228,7 @@ def customer_address(request, _id=None):
             # path parameter available
             else:
                 try:
-                    data=database['Ship-add'].find_one({'_id': _id})
+                    data=database['Ship-add'].find_one({'_id': _id,'is_deleted': False}, {"is_deleted": 0})
                     
                     if data is None:
                         return JsonResponse(output_format(message='Address not found.'))
@@ -916,15 +1256,15 @@ def product_discount(request, _id=None):
             data = {}
             #checking if cat_type already exists
             if database['Discount'].find_one({'coupon_code': request_data['coupon_code']}) is None:
-
+                print(request_data)
                 #checking data format
                 try:
                     data['disc_percent'] =  float(request_data['disc_percent'])
                     data['coupon_code'] = request_data['coupon_code']   
-                    data['valid_from'] = request_data['valid_from']
-                    data['valid_until'] = request_data['valid_until']   #date
-                    data['min_ord_val'] = request_data['min_ord_val']   #date
-                    data['max_disc_amt'] = request_data['max_disc_amt']
+                    data['min_ord_val'] = float(request_data['min_ord_val'])
+                    data['valid_from'] = datetime.datetime.strptime(request_data['valid_from'], '%Y-%m-%dT%H:%M:%S.%fZ')   #date
+                    data['valid_until'] = datetime.datetime.strptime(request_data['valid_until'], '%Y-%m-%dT%H:%M:%S.%fZ')   #date
+                    data['max_disc_amt'] = float(request_data['max_disc_amt'])
                     data['create_date'] = datetime.datetime.now()
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
@@ -932,6 +1272,7 @@ def product_discount(request, _id=None):
                 #inserting data
                 try:
                     data['_id'] = create_unique_object_id()
+                    data['is_deleted'] = False
                     database['Discount'].insert_one(data)
                     return JsonResponse(output_format(message='Success!'))
                 except:
@@ -955,7 +1296,7 @@ def product_discount(request, _id=None):
 
                 #getting and returning all the suppliers from the db
                 try:
-                    data = database['Discount'].find()
+                    data = database['Discount'].find({'is_deleted': False}, {"is_deleted": 0})
                     data = [i for i in data]
                     print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
@@ -965,7 +1306,7 @@ def product_discount(request, _id=None):
             # path parameter available
             else:
                 try:
-                    data=database['Discount'].find_one({'_id': _id})
+                    data=database['Discount'].find_one({'_id': _id, 'is_deleted': False}, {"is_deleted": 0})
                     
                     if data is None:
                         return JsonResponse(output_format(message='Discount not found.'))
@@ -990,7 +1331,7 @@ def check_discount_code(request):
             
             request_data = request.data.dict()
             
-            discount = database['Discount'].find_one({'coupon_code': request_data['coupon_code']})
+            discount = database['Discount'].find_one({'coupon_code': request_data['coupon_code'], "is_deleted": False}, {"is_deleted": 0})
 
             if discount is None:
                 return JsonResponse(output_format(message='Wrong coupon code.'))
@@ -1044,7 +1385,7 @@ def customer_order(request):
                 product = database['Product'].find_one(
                     filter={'_id': ordered_product['prod_id']})     #fetching product from product table
 
-                #checking wheter product exists
+                #checking whether product exists
                 if product is None:
                     return JsonResponse(output_format(message='Product doesn\'t exist.'))
 
@@ -1348,37 +1689,80 @@ def customer_product(request, _id=None):
                             {
                             "$unwind": "$Product"
                             },
-                        {
-                            "$project":
                             {
-                                "_id": "$Product._id",
-                                "prod_name": "$Product.prod_name",
-                                "prod_desc": "$Product.prod_desc",
-                                "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
-                                "prod_price": "$Product.prod_price",
-                                "cat_id" : "$Product.cat_id",
-                                "cat_title": "$Category.cat_title",
-                                "cat_type_id": "$Category.cat_type_id",
-                                "cat_type": "$cat_type",
-                                
-                            }
-                        }])
+                                "$match": {'Category.active': True, 'Product.active': True, 'active': True,
+                                           'Category.is_deleted': False, 'Product.is_deleted': False, 'is_deleted': False}
+                            },
+                            {
+                                "$project":
+                                {
+                                    "_id": "$Product._id",
+                                    "prod_name": "$Product.prod_name",
+                                    "prod_desc": "$Product.prod_desc",
+                                    "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
+                                    "prod_price": "$Product.prod_price",
+                                    "cat_id" : "$Product.cat_id",
+                                    "cat_title": "$Category.cat_title",
+                                    "cat_type_id": "$Category.cat_type_id",
+                                    "cat_type": "$cat_type",
+                                    
+                                }
+                            }])
                     data = [i for i in data]
-
+                    pass
+                    print(data)
+                    pass
                     #shuffling the data using random module's shuffle
                     random.shuffle(data)
                     # print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
                     return JsonResponse(output_format(message='Products not fetched.'))
-
-
+        else:
+            # Aggregate for getting all products to customer side
+            
+            out = database['Category-type'].aggregate([{
+                            '$lookup':{
+                                'from':'Product',
+                                'localField':'_id',
+                                'foreignField':'cat_id',
+                                'as':'Product'
+                            }
+                        },
+                        {
+                            '$unwind':'$Product'
+                        },
+                        {
+                                "$match": { "Product._id": _id, 'is_deleted': False, 'Product.is_deleted': False,
+                                           'Product.active': True, 'active': True}
+                        },
+                        {
+                            '$project': {
+                                '_id': '$Product._id',
+                                'prod_name': '$Product.prod_name',
+                                'cat_id':'$_id',
+                                'cat_title': '$cat_title',
+                                'active': '$Product.active',
+                                'prod_price': '$Product.prod_price',
+                                'prod_qty': '$Product.prod_qty',
+                                'prod_desc': '$Product.prod_desc',
+                                'created_at': '$Product.created_at',
+                                'prod_image': '$Product.prod_image',
+                            }
+                        }
+                    ])
+            
+            try:
+                data = out.next()
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                raise JsonResponse(output_format(message='Product not fetched.'))
+            
 
             # send_email()
             # print(reset_url)
             # return JsonResponse(output_format(message='Success!', data={'reset_url': reset_url}))
             # # f"Hello {'Raj'},\n Here is a link to reset the password for Gurukrupa Fashion Shopping Site which expires in 2 hours.\n\n\t\t{'localhost\:3000/forgot-passoword/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6eyJpZCI6IklELTY2MmY4NjFiLTZmMWQtNGMwNy05OWY0LWEwMTEzMWJmZWYzOSIsInJvbGUiOiJhZG1pbiJ9LCJleHAiOjE2NzUwMTY4NjF9.VmhDp1LnYJ2PBNaXqMP-cFmBpndxLsHSTRd8Tczzqr8/'}\nHave a nice day ahead."
-
 
 
 

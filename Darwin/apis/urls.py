@@ -23,19 +23,21 @@ urlpatterns = [
 
     #Admin panel
     path('admin-supplier/', views.supplier, name='admin-supplier'),
-    path('admin-supplier/<str:_id>/', views.supplier, name='admin-supplier'),   #done
+    path('admin-supplier/<str:_id>/', views.supplier, name='admin-supplier'),   #done   #patch #update
 
     path('admin-category-type/', views.cat_type, name='admin-category-type'),
-    path('admin-category-type/<str:_id>/', views.cat_type, name='admin-category-type'), #done
+    path('admin-category-type/<str:_id>/', views.cat_type, name='admin-category-type'), #done   #patch  #delete
 
     path('admin-category/', views.admin_category, name='admin-category'),
-    path('admin-category/<str:_id>/', views.admin_category, name='admin-category'),     #done
+    path('admin-category/<str:_id>/', views.admin_category, name='admin-category'),     #done   #patch  #delete
 
+    path('admin-cat-type-to-category/<str:_id>', views.admin_cat_type_to_category, name='admin-cat-type-to-category'),
+    
     path('admin-product/', views.admin_product, name='admin-product'),
-    path('admin-product/<str:_id>/', views.admin_product, name='admin-product'),    #done
+    path('admin-product/<str:_id>/', views.admin_product, name='admin-product'),    #done   #patch  #delete
 
     path('admin-purchase/', views.admin_purchase, name='admin-purchase'),
-    path('admin-purchase/<str:_id>/', views.admin_purchase, name='admin-purchase'),     #done
+    path('admin-purchase/<str:_id>/', views.admin_purchase, name='admin-purchase'),     #done   #patch
 
     path('product-discount/', views.product_discount, name='product-discount'),
     path('product-discount/<str:_id>/', views.product_discount, name='product-discount'),   #done
@@ -56,4 +58,5 @@ urlpatterns = [
 
     #open apis
     path('customer-product/', views.customer_product, name='customer-product'),
+    path('customer-product/<str:_id>/', views.customer_product, name='customer-product'),
 ]
