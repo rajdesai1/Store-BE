@@ -29,6 +29,8 @@ class AuthenticateMiddleware:
                         'add-to-cart',
                         'reset-password',
                         'admin-cat-type-to-category',
+                        'admin-cat-to-product',
+                        'cart',
                     ]
         # One-time configuration and initialization.
 
@@ -61,9 +63,13 @@ class AuthenticateMiddleware:
                 #checking if expired
                 if datetime.datetime.fromtimestamp(result['exp']) > datetime.datetime.now():
                     
+                    user = database['User'].find_one({'_id': result['id']['id'], 'role': result['id']['role']})
                     
-                    request.id = result['id']['id']
-                    request.role = result['id']['role']
+                    if user is not None:
+                        request.id = user['_id']
+                        request.role = user['role']
+                    else:
+                        return JsonResponse(output_format(message='User not found with received token.'))
                     # request['email'] = result['id']
             else:
                 return JsonResponse(output_format(message="Token Expired!"), status = 200)

@@ -32,6 +32,8 @@ urlpatterns = [
     path('admin-category/<str:_id>/', views.admin_category, name='admin-category'),     #done   #patch  #delete
 
     path('admin-cat-type-to-category/<str:_id>/', views.admin_cat_type_to_category, name='admin-cat-type-to-category'),
+    path('admin-cat-to-product/<str:_id>/', views.admin_cat_to_product, name='admin-cat-to-product'),
+    
     
     path('admin-product/', views.admin_product, name='admin-product'),
     path('admin-product/<str:_id>/', views.admin_product, name='admin-product'),    #done   #patch  #delete
@@ -54,6 +56,8 @@ urlpatterns = [
 
     path('check-discount-code/', views.check_discount_code, name='check-discount-code'),
     path('customer-order/', views.customer_order, name='customer-order'),
+    
+    path('cart/', views.cart, name='cart'),
 
 
     #open apis
