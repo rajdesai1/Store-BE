@@ -627,7 +627,7 @@ def admin_cat_to_product(request, _id=None):
                                         "as": "product",
                                         "in": {
                                             "prod_id": "$$product._id",
-                                            "prod_name": "$$product.name",
+                                            "prod_name": "$$product.prod_name",
                                         },
                                     }
                                 },
