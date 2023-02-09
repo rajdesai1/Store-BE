@@ -15,6 +15,7 @@ import jwt
 import base64
 import requests
 import random
+import razorpay
 
 # Create your views here.
 
@@ -1109,10 +1110,12 @@ def admin_purchase(request, _id=None):
                 #checking whether product exists or not
                 if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
                     return JsonResponse(output_format(message='Product doesn\'t exist.'))
-                
+                tmp = {}
+                for element in product_details['purch_qty']:
+                     tmp.update(element)
                 #adding purchased qty to the existing product
                 prod_qty = {}
-                for size, qty in product_details['purch_qty'].items():
+                for size, qty in tmp.items():
                     prod_qty[f'prod_qty.{size}'] = qty
                 print(prod_qty)
                 database['Product'].update_one({"_id": product_details['prod_id']},
@@ -1849,7 +1852,7 @@ def customer_product(request, _id=None):
 
 
 
-@api_view(['POST', 'POST', 'PATCH', 'DELETE'])
+@api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def cart(request):
     if request.method == 'POST':
         #fetching admin details
@@ -1866,7 +1869,7 @@ def cart(request):
                 return JsonResponse(output_format(message='Wrong data format.'))
             
             #checking if product exists or not
-            if database['Product'].find_one({'prod_id': prod_id, 'is_deleted': False, 'active': True}) is None:
+            if database['Product'].find_one({'_id': prod_id, 'is_deleted': False, 'active': True}) is None:
                 return JsonResponse(output_format(message='Product doesn\'t exist.'))
             
             # checking if given already exists in cart
@@ -1914,8 +1917,66 @@ def cart(request):
         
         else:
             return JsonResponse(output_format(message='User not customer.'))
-            
-        
+
+    elif request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+                try:
+
+                    # Aggregate for getting all products to customer side
+                    
+                    data = database["Cart"].aggregate([
+                                {'$match': {"_id": user['_id']}},
+                                { '$unwind': "$Cart-details" },
+                                {
+                                    '$project': {
+                                    'prod_id': "$Cart-details.prod_id",
+                                    'prod_qty': { '$objectToArray': "$Cart-details.prod_qty" },
+                                    }},
+                                { '$unwind': "$prod_qty" },
+                                {
+                                    '$project': {
+                                    '_id' : "$_id",
+                                    'prod_id': "$prod_id",
+                                    'size': "$prod_qty.k",
+                                    'qty': "$prod_qty.v",
+                                    }},
+                                {
+                                    '$lookup':{
+                                    'from' : "Product",
+                                    'localField': "prod_id",
+                                    'foreignField': "_id",
+                                    'as': "Product"
+                                    }},
+                                {'$unwind': "$Product"},
+                                {
+                                    '$project':{
+                                    "size": "$size",
+                                    "qty": "$qty",
+                                    "prod_id": "$prod_id",
+                                    "prod_name": "$Product.prod_name",
+                                    "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
+                                    "prod_price": "$Product.prod_price",
+                                    "cat_title": "$Category.cat_title",
+                                    "cat_id" : "$Product.cat_id",
+                                    }}
+                                ])
+
+                    data = [i for i in data]
+                    
+                    if data:
+                        print(data)
+                        return JsonResponse(output_format(message='Success!', data=data))
+                    else:
+                        return JsonResponse(output_format(message='Cart is empty.'))
+                except:
+                    return JsonResponse(output_format(message='Products not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))        
+      
     elif request.method == 'PATCH':
         #fetching admin details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
@@ -1931,7 +1992,7 @@ def cart(request):
                 return JsonResponse(output_format(message='Wrong data format.'))
             
             #checking if product exists or not
-            if database['Product'].find_one({'prod_id': prod_id, 'is_deleted': False, 'active': True}) is None:
+            if database['Product'].find_one({'_id': prod_id, 'is_deleted': False, 'active': True}) is None:
                 return JsonResponse(output_format(message='Product doesn\'t exist.'))
             
             # checking if given already exists in cart
@@ -1943,23 +2004,20 @@ def cart(request):
                 
             #product already available in Cart
             else:
-                
+                print({f'Cart-details.$.prod_qty.{size}': qty})
                 result = database['Cart'].update_one({'_id': user['_id'], "Cart-details.prod_id": prod_id}, 
-                                        {'$set ': {f'Cart-details.$.prod_qty.{size}': qty}})
+                                        {'$set': {f'Cart-details.$.prod_qty.{size}': qty}})
                 
-                if result.modified_count == 1:
+                if result.modified_count == 1 or result.matched_count == 1:
                     return JsonResponse(output_format(message='Success!'))
                 else:
                     return JsonResponse(output_format(message='Product not added to cart.'))
                 
         else:
             return JsonResponse(output_format(message='User not customer.'))
-    
+
     elif request.method == 'DELETE':
-        
-        print(request.body)
-        
-        data = json.loads(request.body)     #loading body string to json data
+
         #fetching admin details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is admin
@@ -1971,46 +2029,63 @@ def cart(request):
                     data = json.loads(request.body)     #loading body string to json data
                     prod_id = data['prod_id']
                     size, qty = list(data['prod_qty'].keys())[0], list(data['prod_qty'].values())[0]
-                    
-                    result = database["Cart"].aggregate([
-                            {'$match': {'_id': user['_id'], 'Cart-details.prod_id': prod_id}},
-                            { '$unwind': "$Cart-details" },
-                            {
-                                '$project': {
-                                '_id': 0,
-                                'prod_id': "$Cart-details.prod_id",
-                                'prod_qty': { '$objectToArray': "$Cart-details.prod_qty" },
-                                },
+
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+
+                result = database["Cart"].aggregate([
+                        {'$match': {'_id': user['_id']}},
+                        { '$unwind': "$Cart-details" },
+                        {
+                            '$project': {
+                            '_id': 0,
+                            'prod_id': "$Cart-details.prod_id",
+                            'prod_qty': { '$objectToArray': "$Cart-details.prod_qty" },
                             },
-                            {
-                                '$project': {
-                                'prod_id': "$prod_id",
-                                'size': {'$size': "$prod_qty.k"},
-                                }}
-                            ])
+                        },
+                        {'$match': { 'prod_id': prod_id}},
+                        {
+                            '$project': {
+                            'prod_id': "$prod_id",
+                            'len_of_size': {'$size': "$prod_qty.k"},
+                            'size': '$prod_qty.k'
+                            }}
+                        ])
+                try:
+                    result = list(result)[0]
+                    print(result['size'], result['prod_id'])
+                    print(size in result['size'])
                     
-                    if result['size'] == 1 and result['prod_id'] == prod_id:
+                    #if there is only one size in cart for same product
+                    if result['len_of_size'] == 1 and size in result['size'] and result['prod_id'] == prod_id:
                         update_result = database['Cart'].update_one(filter={"_id": user['_id']}, 
                                 update={'$pull': { "Cart-details": { "prod_id": prod_id} } })
                         
                         if update_result.modified_count == 1:
                             return JsonResponse(output_format(message='Success!'))
+
+                    #if received size in not available in cart
+                    elif size not in result['size']:
+                        return JsonResponse(output_format(message='Given size doen\'t exist in cart.'))
                     
+                    #if there is more than one size in cart for same product
                     else:
                         database['Cart'].update_one({'_id': user['_id'],  "Cart-details.prod_id": prod_id },
                             { '$unset': { f"Cart-details.$.prod_qty.{size}": "" } })
                         return JsonResponse(output_format(message='Success!'))
                 except:
-                    return JsonResponse(output_format(message='Wrong data format.'))
+                    return JsonResponse(output_format(message='Deleted failed.'))
+
+            #clearing the whole cart
             else:
+                out = database['Cart'].delete_one(filter={'_id': user['_id']})
+                if out.deleted_count == 1:
+                    return JsonResponse(output_format(message='Success!'))
+                else:
+                    return JsonResponse(output_format(message='Deleted failed.'))
                 
-                database['Cart'].delete_one(filter={'_id': user['_id']})
         else:
             return JsonResponse(output_format(message='User not customer.'))
-
-
-
-
 
 
 

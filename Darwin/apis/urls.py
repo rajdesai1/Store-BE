@@ -44,7 +44,7 @@ urlpatterns = [
     path('product-discount/', views.product_discount, name='product-discount'),
     path('product-discount/<str:_id>/', views.product_discount, name='product-discount'),   #done
 
-    path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
+    # path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 
     # path('invoice/', views.invoice, name='invoice'),
 
@@ -57,7 +57,7 @@ urlpatterns = [
     path('check-discount-code/', views.check_discount_code, name='check-discount-code'),
     path('customer-order/', views.customer_order, name='customer-order'),
     
-    path('cart/', views.cart, name='cart'),
+    path('cart/', views.cart, name='cart'),     #done 
 
 
     #open apis
