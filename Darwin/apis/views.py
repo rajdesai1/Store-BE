@@ -1716,7 +1716,7 @@ def request_password_reset(request):
             print(encoded_token.decode())
 
             try:
-                reset_url = f"localhost:3000/resetpassoword/{encoded_token.decode()}/"
+                reset_url = f"localhost:3000/resetpassword/{encoded_token.decode()}/"
                 body = f'''<body style="font-family:system-ui;font-size:15px;"><h2 style="color: black;">Trouble signing in?</h2><p style="color: black;">Hey, Resetting your password is easy.</p><p style="color: black;">Copy & paste this link into your browser and follow the instructions. We'll have you up and
                 running in no time.</p><p style="color:darkblue;word-wrap:break-word;text-decoration:underline;">{reset_url}</p><p style="color: black;">If you did not make this request then please ignore this email.</p></body>
                     '''
