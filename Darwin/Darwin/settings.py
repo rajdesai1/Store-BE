@@ -139,6 +139,10 @@ MAIL_SERVICE_CONFIGS = {
     'smtp_port': 465
 }
 
+RAZORPAY_CONFIGS = {
+    'RAZOR_KEY_ID' : 'rzp_test_Cl1G7wgRpRqdBD',
+    'RAZOR_KEY_SECRET' : '40UYLte1UxnJbWlusNVjOipQ'
+}
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
 

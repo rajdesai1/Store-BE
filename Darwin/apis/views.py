@@ -7,7 +7,7 @@ from .db import database, client, jwt_secret
 from .utils import pwd_context, output_format, create_unique_object_id, send_email
 import pyrebase
 from django.core.files.storage import default_storage
-from Darwin.settings import FIREBASECONFIG
+from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS
 import os
 import datetime
 import json
@@ -1110,9 +1110,9 @@ def admin_purchase(request, _id=None):
                 #checking whether product exists or not
                 if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
                     return JsonResponse(output_format(message='Product doesn\'t exist.'))
-                tmp = {}
-                for element in product_details['purch_qty']:
-                     tmp.update(element)
+                
+                # converting purchase details from recieved array to dictionary
+                tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
                 #adding purchased qty to the existing product
                 prod_qty = {}
                 for size, qty in tmp.items():
@@ -2088,11 +2088,87 @@ def cart(request):
             return JsonResponse(output_format(message='User not customer.'))
 
 
+@api_view(['POST'])
+def get_payment(request):
+
+    if request.method == 'POST':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            try:
+                rec_data = request.data.dict()     #loading body string to json data
+                order_amount = float(rec_data['order_amount'])
+                
+                
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+            
+            
+            # authorize razorpay client with API Keys.
+            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
+                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+
+            # creating order to send in response
+            try:
+                razorpay_order = client.order.create({
+                                'amount':100*order_amount, 'currency': 'INR',
+                                'payment_capture': '0'})
+                
+                if razorpay_order is not None:
+                    data={}
+                    
+                    data['razorpay_order_id'] = razorpay_order['id']
+                    data['name'] = user['name']
+                    data['order_amount'] = order_amount
+                    data['currency'] = 'INR'
+                    data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                
+                    return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Razorpay error.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
 
 
+@api_view(['POST'])
+def payment_callback(request):
+        
+    if request.method == 'POST':
 
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            try:
+                rec_data = request.data.dict()     #loading body string to json data
 
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+    
+                        # authorize razorpay client with API Keys.
+            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
+                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+            if "razorpay_signature" in rec_data:
 
+            # Verifying Payment Signature
+                razorpay_response = client.utility.verify_payment_signature(rec_data)
+            # if we get here Ture signature
+                if razorpay_response:
+                    data = {}
+
+                    data['status'] = 'Success!'
+                    data['payment_id'] = rec_data['razorpay_payment_id']
+                    data['signature_id'] = rec_data['razorpay_signature']
+                    
+                    return JsonResponse(output_format(message='Success!', data=data))
+                else:
+                    return JsonResponse(output_format(message='Signature incorrect.'))
+            else:
+                return JsonResponse(output_format(message='Not received response.'))
+                
 
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):

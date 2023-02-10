@@ -57,7 +57,9 @@ urlpatterns = [
     path('check-discount-code/', views.check_discount_code, name='check-discount-code'),
     path('customer-order/', views.customer_order, name='customer-order'),
     
-    path('cart/', views.cart, name='cart'),     #done 
+    path('cart/', views.cart, name='cart'),     #done
+    
+    path('get-payment/', views.get_payment, name='get-payment'),
 
 
     #open apis
