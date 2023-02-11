@@ -32,6 +32,7 @@ class AuthenticateMiddleware:
                         'admin-cat-to-product',
                         'cart',
                         'get-payment',
+                        'cart-count',
                     ]
         # One-time configuration and initialization.
 

@@ -2087,12 +2087,53 @@ def cart(request):
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
+@api_view(['GET'])
+def cart_count(request):
+    if request.method == 'GET':
+        #fetching user details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            data = database["Cart"].aggregate([
+                                {'$match': {"_id": user['_id']}},
+                                { '$unwind': "$Cart-details" },
+                                {
+                                    '$project': {
+                                    'prod_id': "$Cart-details.prod_id",
+                                    'prod_qty': { '$objectToArray': "$Cart-details.prod_qty" },
+                                    }},
+                                { '$unwind': "$prod_qty" },
+                                {
+                                    '$project': {
+                                    '_id' : "$_id",
+                                    'prod_id': "$prod_id",
+                                    'size': "$prod_qty.k",
+                                    'qty': "$prod_qty.v",
+                                    }},
+                                {
+                                    '$project':{
+                                    'prod_id': "$prod_id"
+                                    }},
+                                        {
+                                          '$count': "cart_count"
+                                        }
+                                ])
+            data = [i for i in data]
+            print(data)
+            if data:
+                print(data)
+                return JsonResponse(output_format(message='Success!', data=data[0]))
+            else:
+                return JsonResponse(output_format(message='Success!', data={'cart_count':0}))
+    else:
+        return JsonResponse(output_format(message='User not customer.'))
 
+    
 @api_view(['POST'])
 def get_payment(request):
 
     if request.method == 'POST':
-        #fetching admin details
+        #fetching user details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is customer
         if user['role'] == 'customer' and user['_id'] == request.id:
@@ -2202,3 +2243,12 @@ def payment_callback(request):
         # print('hee')
 
 
+
+
+
+# Checkout
+#     > Cart
+#         > grab all the items from cart and put into checkout page and clear the cart
+#         > 
+#     > Buy Now!
+#         > direct checkout page
