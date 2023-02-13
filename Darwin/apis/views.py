@@ -1524,7 +1524,7 @@ def check_discount_code(request):
             else:
                 data['applied_disc'] = appied_disc
                 data['_id'] = discount['_id']
-                data['discount_percent'] = discount['discount_percent']
+                data['disc_percent'] = discount['disc_percent']
 
             #sending calculated data
             return JsonResponse(output_format(message='Success!', data=data))
