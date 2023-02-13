@@ -26,17 +26,98 @@ def myview(request):
     return HttpResponse("<h1 style='font-size: 100px; font-family:system-ui;'>Hah! Nothing here.</h1>")
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 def user_profile(request):
-    print(request.id)
-    print(request.role)
-    if request.id:
-        user = database['User'].find_one({'_id' : request.id})
+    if request.method == 'GET':
+        print(request.id)
+        print(request.role)
+        if request.id:
+            user = database['User'].find_one({'_id' : request.id})
+        
+        print(user.pop('password'))
+        # out = [i for i in user]
+        return JsonResponse(output_format(message="Success!", data=user))
     
-    print(user.pop('password'))
-    # out = [i for i in user]
-    return JsonResponse(output_format(message="Success!", data=user))
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Category id not received.'))
+
+            else:
+                category = database['Category'].find_one({'_id': _id, "is_deleted": False})
+                if category is None:
+                    return JsonResponse(output_format(message='Category not found.'))
+                try:
+                    data = request.data.dict()
+                    print(data)
+                    if data.get('active') is not None:
+                        data['active'] =  True if (data['active'] in ('true','True')) else False
+
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                try:
+                    result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+
+
+
+@api_view(['GET'])
+def checkout_user_info(request):
+    
+    if request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            #getting user details and address details
+            data = database['User'].aggregate([
+                            {
+                              '$match': {'_id': user['_id']}
+                            },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Ship-add",
+                                    "localField": "_id",
+                                    "foreignField": "user_id",
+                                    "as": "Ship-add"
+                                }
+                            },
+                            {
+                              '$project':
+                                {
+                                  '_id': 0,
+                                  'password': 0,
+                                  'role':0,
+                                  'Ship-add.is_deleted':0,
+                                  'Ship-add.user_id':0
+                                }
+                            }
+                            ])
+            data = list(data)
+            # print(list(data))
+            if data == []:
+                return JsonResponse(output_format(message='User dosen\'t exist.'))
+            else:
+                # print(list(data)[0])
+                return JsonResponse(output_format(message='Success!', data=data[0]))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+            
 
 @api_view(['POST'])
 def change_password(request):

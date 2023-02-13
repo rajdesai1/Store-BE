@@ -33,6 +33,7 @@ class AuthenticateMiddleware:
                         'cart',
                         'get-payment',
                         'cart-count',
+                        'checkout-user-info'
                     ]
         # One-time configuration and initialization.
 
