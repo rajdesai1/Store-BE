@@ -51,9 +51,14 @@ class AuthenticateMiddleware:
                 token = request.headers['Authorization'].split()[1].strip('\"')
             except:
                 return JsonResponse(output_format(message='Token not found!'))
-
-            if view_name == 'reset-password':
-                token = base64.b64decode(token).decode()
+            
+            #trying to decode base64 token
+            try:
+                if view_name == 'reset-password':
+                    token = base64.b64decode(token).decode()
+            except:
+                return JsonResponse(output_format(message='Token corrupted.'))
+            
             #decoding token
             result = AuthenticateMiddleware.has_key(token)
 
