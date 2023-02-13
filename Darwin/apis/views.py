@@ -1510,13 +1510,23 @@ def check_discount_code(request):
             if discount['valid_until'] < datetime.datetime.today():
                 return JsonResponse(output_format(message='Coupon code expired.'))
             
+            data = {}
             total_amount = float(request_data['total_amount'])
+            print(total_amount)
             if total_amount > discount['min_ord_val'] :
-                appied_disc = total_amount / (discount['disc_percent'] * 0.01)
-            discount['applied_disc'] = appied_disc
+                print(discount['disc_percent'])
+                
+                discount_percent = discount['disc_percent'] * 0.01
+                appied_disc = total_amount * discount_percent
+                
+            if appied_disc > discount['max_disc_amt']:
+                data['applied_disc'] = discount['max_disc_amt']
+            else:
+                data['applied_disc'] = appied_disc
+                data['_id'] = discount['_id']
 
             #sending calculated data
-            return JsonResponse(output_format(message='Success!', data=discount))
+            return JsonResponse(output_format(message='Success!', data=data))
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
