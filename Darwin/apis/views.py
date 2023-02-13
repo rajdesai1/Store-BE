@@ -1505,9 +1505,9 @@ def check_discount_code(request):
 
             if discount is None:
                 return JsonResponse(output_format(message='Wrong coupon code.'))
-            
+
 ############ errrorororororororororos hererererererwdsfwdsferdsfwed
-            if discount['valid_until'] > str(datetime.date.today()):
+            if discount['valid_until'] < datetime.datetime.today():
                 return JsonResponse(output_format(message='Coupon code expired.'))
             
             total_amount = float(request_data['total_amount'])
@@ -1582,15 +1582,40 @@ def customer_order(request):
                         return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
 
             data['order_date'] = datetime.datetime.now()
-            data['order_status'] = 'Pending'
+            data['order_status'] = 'Failed'
             
             #inserting data
             try:
                 data['_id'] = create_unique_object_id()
                 database['Order'].insert_one(data)
-                return JsonResponse(output_format(message='Success!'))
+                # return JsonResponse(output_format(message='Success!'))
             except:
                 return JsonResponse(output_format(message='Order not inserted.'))
+            
+            # authorize razorpay client with API Keys.
+            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
+                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+
+
+            # creating order to send in response
+            try:
+                razorpay_order = client.order.create({
+                                'amount':100*data['discounted_amount'], 'currency': 'INR',
+                                'payment_capture': '0'})
+                
+                if razorpay_order is not None:
+                    data={}
+                    
+                    data['razorpay_order_id'] = razorpay_order['id']
+                    data['name'] = user['name']
+                    data['order_amount'] = data['discounted_amount']
+                    data['currency'] = 'INR'
+                    data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                
+                    return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Razorpay error.'))
+            
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
