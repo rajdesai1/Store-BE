@@ -42,28 +42,19 @@ def user_profile(request):
         #fetching user data
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
-        #checking if user is admin
-        if user['role'] == 'admin' and user['_id'] == request.id:
-
-            # checking for path parameters
-            if _id == None:
-                return JsonResponse(output_format(message='Category id not received.'))
-
-            else:
-                category = database['Category'].find_one({'_id': _id, "is_deleted": False})
-                if category is None:
-                    return JsonResponse(output_format(message='Category not found.'))
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
                 try:
                     data = request.data.dict()
                     print(data)
-                    if data.get('active') is not None:
-                        data['active'] =  True if (data['active'] in ('true','True')) else False
+                    if data.get('mobile_no') is not None:
+                        data['mobile_no'] =  int(data['mobile_no'])
 
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
                 
                 try:
-                    result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    result = database['User'].update_one(filter={'_id': user['_id']}, update= {"$set":data})
                     if result.modified_count == 1:
                         return JsonResponse(output_format(message='Success!'))
                 except:
@@ -1369,6 +1360,7 @@ def customer_address(request, _id=None):
                 data['add_type'] = request_data['add_type']
                 data['pincode'] = int(request_data['pincode'])
                 data['state'] = request_data['state']
+                data['city'] = request_data['city']
 
             except:
                 return JsonResponse(output_format(message='Wrong data format.'))
