@@ -1617,7 +1617,7 @@ def customer_order(request):
             # creating order to send in response
             try:
                 razorpay_order = client.order.create({
-                                'amount':100*data['discounted_amount'], 'currency': 'INR',
+                                'amount':100*(data['total_amount']-data['discounted_amount']), 'currency': 'INR',
                                 'payment_capture': '0'})
                 
                 if razorpay_order is not None:
@@ -1625,7 +1625,7 @@ def customer_order(request):
                     
                     data['razorpay_order_id'] = razorpay_order['id']
                     data['name'] = user['name']
-                    data['order_amount'] = data['discounted_amount']
+                    data['order_amount'] = (data['total_amount']-data['discounted_amount'])
                     data['currency'] = 'INR'
                     data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
                 
