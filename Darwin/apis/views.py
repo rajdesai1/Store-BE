@@ -1335,10 +1335,12 @@ def admin_purchase(request, _id=None):
                             # )
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))            
                 
 
 
-@api_view(['POST', 'GET'])
+@api_view(['POST', 'GET', 'PATCH'])
 def customer_address(request, _id=None):
 
 ##### for addding customer's address   
@@ -1408,6 +1410,38 @@ def customer_address(request, _id=None):
                     return JsonResponse(output_format(message='Address not fetched.'))
         else:
             return JsonResponse(output_format(message='User not customer.'))
+
+##### for updating customer address
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='address id not received.'))
+            
+            # if id is receivied
+            else:
+                address = database['Ship-add'].find_one({'_id': _id})
+                if address is None:
+                    return JsonResponse(output_format(message='Address not found.'))
+                try:
+                    
+                    data = request.data.dict()
+                    if data.get('pincode') is not None:
+                        data['pincode'] = int(data['pincode'])
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                try:
+                    result = database['Ship-add'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Update failed.'))
 
 
 @api_view(['POST', 'GET'])
@@ -1603,7 +1637,8 @@ def customer_order(request):
             
             #inserting data
             try:
-                data['_id'] = create_unique_object_id()
+                order_id = create_unique_object_id()
+                data['_id'] = order_id
                 database['Order'].insert_one(data)
                 # return JsonResponse(output_format(message='Success!'))
             except:
@@ -1618,23 +1653,93 @@ def customer_order(request):
             try:
                 razorpay_order = client.order.create({
                                 'amount':100*(data['total_amount']-data['discounted_amount']), 'currency': 'INR',
-                                'payment_capture': '0'})
+                                'payment_capture': '1'})
                 
                 if razorpay_order is not None:
-                    data={}
                     
-                    data['razorpay_order_id'] = razorpay_order['id']
-                    data['name'] = user['name']
-                    data['order_amount'] = (data['total_amount']-data['discounted_amount'])
-                    data['currency'] = 'INR'
-                    data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                    response_data={}
+                    
+                    response_data['razorpay_order_id'] = razorpay_order['id']
+                    response_data['name'] = user['name']
+                    response_data['order_amount'] = (data['total_amount']-data['discounted_amount'])
+                    response_data['currency'] = 'INR'
+                    response_data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                    response_data['order_id'] = order_id
+                    
                 
-                    return JsonResponse(output_format(message='Success!', data=data))
+                    return JsonResponse(output_format(message='Success!', data=response_data))
             except:
                 return JsonResponse(output_format(message='Razorpay error.'))
             
         else:
             return JsonResponse(output_format(message='User not customer.'))
+
+@api_view(['POST'])
+def verify_order(request):
+    
+    if request.method == 'POST':
+        
+        #fetching customer details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            # getting data form request
+            response = request.data.dict()
+
+            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
+                                                        RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+            if "razorpay_signature" in response:
+
+                # Verifying Payment Signature
+                # is_sign_valid = client.utility.verify_payment_signature(response)
+                
+                payment_details = {'Payment-details':
+                        {
+                            'razorpay_order_id': response['razorpay_order_id'],
+                            'razorpay_payment_id': response['razorpay_payment_id'],
+                            'razorpay_signature': response['razorpay_signature']
+                            }
+                    }
+                
+                # checking if we get here True signature 
+                if client.utility.verify_payment_signature(response):
+                    
+                    payment_details = {'Payment-details':
+                        {
+                            'razorpay_order_id': response['razorpay_order_id'],
+                            'razorpay_payment_id': response['razorpay_payment_id'],
+                            'razorpay_signature': response['razorpay_signature']
+                            }
+                    }
+                    
+                    result = database['Order'].update_one({'_id': response['order_id']}, 
+                                                {'$set': {'order_status': 'Pending', 
+                                                        'Payment-details': payment_details}})
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+
+            # Handling failed payments
+            else:
+                
+                order = database['User'].find_one({'_id': response['order_id']})
+                for ordered_product in order['Order-details']:
+
+                    product = database['Product'].find_one(
+                        filter={'_id': ordered_product['prod_id']})     #fetching product from product table
+
+                
+
+                    for size, qty in ordered_product['prod_qty'].items():       #looping data from POST request
+                        available_qty = product['prod_qty'].get(size)
+
+                        database['Product'].update_one(
+                            {'_id': product['_id']}, {'$inc': {f'prod_qty.{size}': qty}}
+                        )       #updating product qty
+
+                return JsonResponse(output_format(message='Order failed.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
 
 
 ##### get all orders as a customer

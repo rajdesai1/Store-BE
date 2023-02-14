@@ -34,7 +34,8 @@ class AuthenticateMiddleware:
                         'get-payment',
                         'cart-count',
                         'checkout-user-info',
-                        'check-discount-code'
+                        'check-discount-code',
+                        'verify-order'
                     ]
         # One-time configuration and initialization.
 
