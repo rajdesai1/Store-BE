@@ -1555,9 +1555,10 @@ def customer_order(request):
 
             #checking whether coupon code exists
             try:
-                order_discount = database['Discount'].find_one(filter={'_id': data['disc_id']})
-                if order_discount is None:
-                    return JsonResponse(output_format(message='Wrong coupon code.'))
+                if data.get('disc_id'):
+                    order_discount = database['Discount'].find_one(filter={'_id': data['disc_id']})
+                    if order_discount is None:
+                        return JsonResponse(output_format(message='Wrong coupon code.'))
             except:
                 pass
 
