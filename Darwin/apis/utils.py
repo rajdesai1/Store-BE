@@ -35,6 +35,28 @@ def login_status(request):
     return flag, user_obj
 
 
+def convert_structure(data):
+    new_data = []
+    for item in data:
+        existing_prod = None
+        for new_item in new_data:
+            if new_item['prod_id'] == item['prod_id']:
+                existing_prod = new_item
+                break
+        size, qty = list(item['prod_qty'].keys())[0], list(item['prod_qty'].values())[0]
+        if existing_prod:
+            size, qty = list(item['prod_qty'].keys())[0], list(item['prod_qty'].values())[0]
+            existing_prod['prod_qty'][size] = qty
+        else:
+            new_data.append({
+                'prod_id': item['prod_id'],
+                'prod_qty': {
+                    size: qty 
+                }
+            })
+    return new_data
+
+
 #for formatting output in json response
 def output_format(status=200, message='', data={}):
     response = {"status" : status, "message":message, "data" : data}

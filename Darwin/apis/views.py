@@ -4,7 +4,7 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from .db import database, client, jwt_secret
-from .utils import pwd_context, output_format, create_unique_object_id, send_email
+from .utils import pwd_context, output_format, create_unique_object_id, send_email, convert_structure
 import pyrebase
 from django.core.files.storage import default_storage
 from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS
@@ -1525,6 +1525,8 @@ def check_discount_code(request):
                 data['applied_disc'] = appied_disc
                 data['_id'] = discount['_id']
                 data['disc_percent'] = discount['disc_percent']
+            
+            data['applied_disc'] = int(data['applied_disc'])
 
             #sending calculated data
             return JsonResponse(output_format(message='Success!', data=data))
@@ -1561,6 +1563,9 @@ def customer_order(request):
 
             # performing product related checks(if product exists, size available?, 
             # qty available?, out of stock or not.)
+            
+            data['Order-details'] = convert_structure(data['Order-details'])
+            
             for ordered_product in data['Order-details']:
 
                 product = database['Product'].find_one(
