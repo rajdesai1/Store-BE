@@ -1340,7 +1340,7 @@ def admin_purchase(request, _id=None):
                 
 
 
-@api_view(['POST', 'GET', 'PATCH'])
+@api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def customer_address(request, _id=None):
 
 ##### for addding customer's address   
@@ -1442,6 +1442,30 @@ def customer_address(request, _id=None):
                         return JsonResponse(output_format(message='Success!'))
                 except:
                     return JsonResponse(output_format(message='Update failed.'))
+
+##### for deleting customer address using address_id
+    elif request.method == 'DELETE':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Address id not received.'))
+            else:
+                address = database['Ship-add'].find_one({'_id': _id,'user_id': user['_id'], "is_deleted": False})
+                if address is None:
+                    return JsonResponse(output_format(message='Address not found.'))
+
+                result = database['Ship-add'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
+                if result.modified_count == 1:
+                    return JsonResponse(output_format(message='Success!'))
+                else:
+                    return JsonResponse(output_format(message='Delete failed.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
 
 
 @api_view(['POST', 'GET'])
@@ -1633,6 +1657,7 @@ def customer_order(request):
                         return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
 
             data['order_date'] = datetime.datetime.now()
+            data['user_id'] = user['_id']
             data['order_status'] = 'Failed'
             
             #inserting data
@@ -1674,6 +1699,133 @@ def customer_order(request):
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
+    ##### get all orders as a customer
+    elif request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            #getting and returning all the products from the db
+            try:
+                
+                # query to get all customer orders
+                data = database['Order'].aggregate([
+                    { '$match': { 'user_id': user['_id'] } },
+                    { '$unwind': "$Order-details" },
+                    {
+                        '$project': {
+                        'prod_id': "$Order-details.prod_id",
+                        'prod_qty': { '$objectToArray': "$Order-details.prod_qty" },
+                        'add_id': 1,
+                        'disc_id': 1,
+                        'order_status': 1,
+                        'total_amount':1,
+                        'discount':1,
+                        '_id': 1,
+                        },
+                    },
+                    { '$unwind': "$prod_qty" },
+                    {
+                        '$project': {
+                        '_id': "$_id",
+                        'prod_id': "$prod_id",
+                        'size': "$prod_qty.k",
+                        'qty': "$prod_qty.v",
+                        'add_id': 1,
+                        'disc_id': 1,
+                        'order_status': 1,
+                        '_id': 1,
+                        'total_amount':1,
+                        'discount':1,
+                        },
+                    },
+                    {
+                        '$lookup': {
+                        'from': "Product",
+                        'localField': "prod_id",
+                        'foreignField': "_id",
+                        'as': "Product",
+                        },
+                    },
+                    { '$unwind': "$Product" },
+                    {
+                        '$project': {
+                        'add_id': 1,
+                        'disc_id': 1,
+                        'order_status': 1,
+                        'total_amount':1,
+                        'discount':1,
+                        '_id': 1,
+                        'prod_id': "$prod_id",
+                        'size': "$size",
+                        'prod_image': { '$arrayElemAt': ["$Product.prod_image", 0] },
+                        'qty': "$qty",
+                        'prod_name': "$Product.prod_name",
+                        'prod_price': "$Product.prod_price",
+                        },
+                    },
+                    {
+                        '$group': {
+                        '_id': {
+                            '_id': "$_id",
+                            'add_id': "$add_id",
+                            'disc_id': "$disc_id",
+                            'order_status': "$order_status",
+                            'total_amount': '$total_amount',
+                            'discount': '$discount',
+                        },
+                        'Order_details': {
+                            '$push': {
+                            'prod_name': "$prod_name",
+                            'size': "$size",
+                            'qty': "$qty",
+                            'prod_image': "$prod_image",
+                            'prod_id': "$prod_id",
+                            'prod_price': "$prod_price",
+                            },
+                        },
+                        },
+                    },
+                    {
+                        '$lookup': {
+                        'from': "Ship-add",
+                        'localField': "_id.add_id",
+                        'foreignField': "_id",
+                        'as': "Ship-add",
+                        },
+                    },
+                    { '$unwind': "$Ship-add" },
+                    {
+                        '$project': {
+                        '_id': "$_id._id",
+                        'add_id': "$_id.add_id",
+                        'total_amount':"$_id.total_amount",
+                        'discount':"$_id.discount",
+                        'house_no': "$Ship-add.house_no",
+                        'area_street': "$Ship-add.aread_street",
+                        'add_type': "$Ship-add.add_type",
+                        'pincode': "$Ship-add.pincode",
+                        'state': "$Ship-add.state",
+                        'city': "$Ship-add.city",
+                        'order_status': "$_id.order_status",
+                        "Order-details": "$Order_details",
+                        },
+                    }
+                    ])
+           
+                data = list(data)
+        
+                if data == []:
+                    return JsonResponse(output_format(message='Orders not found.'))
+                else:
+                    return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Orders not fetched.'))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
 @api_view(['POST'])
 def verify_order(request):
     
@@ -1684,44 +1836,42 @@ def verify_order(request):
         #checking if user is customer
         if user['role'] == 'customer' and user['_id'] == request.id:
             # getting data form request
-            response = request.data.dict()
+            if request.data.get('response1'):
+                response = request.data['response1']
 
-            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
-                                                        RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
-            if "razorpay_signature" in response:
 
-                # Verifying Payment Signature
-                # is_sign_valid = client.utility.verify_payment_signature(response)
-                
-                payment_details = {'Payment-details':
-                        {
-                            'razorpay_order_id': response['razorpay_order_id'],
-                            'razorpay_payment_id': response['razorpay_payment_id'],
-                            'razorpay_signature': response['razorpay_signature']
-                            }
-                    }
-                
-                # checking if we get here True signature 
-                if client.utility.verify_payment_signature(response):
+                client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
+                                                            RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+                if "razorpay_signature" in response:
+
+                    # Verifying Payment Signature
+                    # is_sign_valid = client.utility.verify_payment_signature(response)
+
                     
-                    payment_details = {'Payment-details':
-                        {
-                            'razorpay_order_id': response['razorpay_order_id'],
-                            'razorpay_payment_id': response['razorpay_payment_id'],
-                            'razorpay_signature': response['razorpay_signature']
-                            }
-                    }
-                    
-                    result = database['Order'].update_one({'_id': response['order_id']}, 
-                                                {'$set': {'order_status': 'Pending', 
-                                                        'Payment-details': payment_details}})
-                    if result.modified_count == 1:
-                        return JsonResponse(output_format(message='Success!'))
+                    # checking if we get here True signature 
+                    if client.utility.verify_payment_signature(response):
+                        
+                        payment_details = {
+                                'razorpay_order_id': response['razorpay_order_id'],
+                                'razorpay_payment_id': response['razorpay_payment_id'],
+                                'razorpay_signature': response['razorpay_signature']
+                                }
+                        
+                        result = database['Order'].update_one({'_id': response['order_id']}, 
+                                                    {'$set': {'order_status': 'Pending', 
+                                                            'Payment-details': payment_details}})
+                        
+                        database['Cart'].delete_one({'_id':user['_id']})
+
+                        if result.modified_count == 1:
+                            return JsonResponse(output_format(message='Success!'))
 
             # Handling failed payments
-            else:
+            elif request.data.get('dataError'):
+
+                response = request.data['dataError']
                 
-                order = database['User'].find_one({'_id': response['order_id']})
+                order = database['Order'].find_one({'_id': response['ord_id']})
                 for ordered_product in order['Order-details']:
 
                     product = database['Product'].find_one(
@@ -1736,28 +1886,7 @@ def verify_order(request):
                             {'_id': product['_id']}, {'$inc': {f'prod_qty.{size}': qty}}
                         )       #updating product qty
 
-                return JsonResponse(output_format(message='Order failed.'))
-        else:
-            return JsonResponse(output_format(message='User not customer.'))
-
-
-
-##### get all orders as a customer
-    elif request.method == 'GET':
-        #fetching user data
-        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
-
-        #checking if user is customer
-        if user['role'] == 'customer' and user['_id'] == request.id:
-
-            #getting and returning all the products from the db
-            try:
-
-                data = database['Order'].find({'user_id': user['_id']})
-                data = [i for i in data]
-                return JsonResponse(output_format(message='Success!', data=data))
-            except:
-                return JsonResponse(output_format(message='Orders not fetched.'))
+                    return JsonResponse(output_format(message='Order failed.'))
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
