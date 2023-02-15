@@ -1724,6 +1724,7 @@ def customer_order(request):
                         'total_amount':1,
                         'discount':1,
                         '_id': 1,
+                        'order_date':1
                         },
                     },
                     { '$unwind': "$prod_qty" },
@@ -1739,6 +1740,7 @@ def customer_order(request):
                         '_id': 1,
                         'total_amount':1,
                         'discount':1,
+                        'order_date':1
                         },
                     },
                     {
@@ -1758,6 +1760,7 @@ def customer_order(request):
                         'total_amount':1,
                         'discount':1,
                         '_id': 1,
+                        'order_date':1,
                         'prod_id': "$prod_id",
                         'size': "$size",
                         'prod_image': { '$arrayElemAt': ["$Product.prod_image", 0] },
@@ -1775,6 +1778,7 @@ def customer_order(request):
                             'order_status': "$order_status",
                             'total_amount': '$total_amount',
                             'discount': '$discount',
+                            'order_date':'$order_date'
                         },
                         'Order_details': {
                             '$push': {
@@ -1810,6 +1814,7 @@ def customer_order(request):
                         'state': "$Ship-add.state",
                         'city': "$Ship-add.city",
                         'order_status': "$_id.order_status",
+                        'order_date': '$_id.order_date',
                         "Order-details": "$Order_details",
                         },
                     }
