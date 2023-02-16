@@ -1852,7 +1852,7 @@ def customer_order(request):
                         'city': "$Ship-add.city",
                         'order_status': "$_id.order_status",
                         'order_date': '$_id.order_date',
-                        "Order-details": "$Order_details",     
+                        "Order_details": "$Order_details",     
                         },
                     }
                     ])
