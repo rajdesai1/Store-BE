@@ -1854,7 +1854,8 @@ def customer_order(request):
                         'order_date': '$_id.order_date',
                         "Order_details": "$Order_details",     
                         },
-                    }
+                    },
+                    { '$sort': { 'order_date': -1 } }
                     ])
            
                 data = list(data)
@@ -2024,8 +2025,16 @@ def order_invoice(request, _id=None):
                 except:
                     return JsonResponse(output_format(message='Order not fetched.'))
                 
-                data
-            
+                client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                            base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
+
+                output = client.payment.fetch(data['razorpay_payment_id'])
+                data['card_last4'] = output['card']['last4']
+                data.pop('razorpay_payment_id')
+                return JsonResponse(output_format(message='Success!', data=data))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
             
         
 
