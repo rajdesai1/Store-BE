@@ -66,6 +66,8 @@ urlpatterns = [
     path('cart-count/', views.cart_count, name='cart-count'),
     
     path('checkout-user-info/', views.checkout_user_info, name='checkout-user-info'),
+    
+    path('order-invoice/', views.order_invoice, name= 'order-invoice'),
 
     #open apis
     path('customer-product/', views.customer_product, name='customer-product'),

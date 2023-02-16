@@ -4,7 +4,7 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from .db import database, client, jwt_secret
-from .utils import pwd_context, output_format, create_unique_object_id, send_email, convert_structure
+from .utils import pwd_context, output_format, create_unique_object_id, send_email, convert_structure, base64decode
 import pyrebase
 from django.core.files.storage import default_storage
 from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS
@@ -85,20 +85,57 @@ def checkout_user_info(request):
                                     "from": "Ship-add",
                                     "localField": "_id",
                                     "foreignField": "user_id",
-                                    "as": "Ship-add"
+                                    "as": "Shipadd"
                                 }
                             },
+    
                             {
                               '$project':
                                 {
-                                  '_id': 0,
-                                  'password': 0,
-                                  'role':0,
-                                  'Ship-add.is_deleted':0,
-                                  'Ship-add.user_id':0
+                                  'email':1,
+                                  'name':1,
+                                  'mobile_no':1,
+                                  'Shipadd_label':1,
+                                  'Ship-add': {
+                                '$filter': {
+                                  'input': "$Shipadd",
+                                  'as': "address",
+                                  'cond': { '$eq': ["$$address.is_deleted", False] }
                                 }
                             }
-                            ])
+                            }},
+                            {
+                              '$project': {
+                                  'Ship-add.is_deleted': False,
+                                  'Ship-add.user_id': False
+                              }
+                            },
+                            {
+                              "$addFields": {
+                                "Ship-add": {
+                                  "$map": {
+                                    'input': "$Ship-add",
+                                    'as': "addr",
+                                    'in': {
+                                      '$mergeObjects': [
+                                        "$$addr",
+                                        {
+                                          "Shipadd_label": {
+                                            '$concat': [
+                                              "$$addr.house_no", ", ",
+                                              "$$addr.area_street", ", ",
+                                              "$$addr.city", ", ",
+                                              "$$addr.state", " - ",
+                                              { '$toString': "$$addr.pincode" }
+                                            ]
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }])
             data = list(data)
             # print(list(data))
             if data == []:
@@ -1670,8 +1707,8 @@ def customer_order(request):
                 return JsonResponse(output_format(message='Order not inserted.'))
             
             # authorize razorpay client with API Keys.
-            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
-                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+            client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                    base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
 
 
             # creating order to send in response
@@ -1688,7 +1725,7 @@ def customer_order(request):
                     response_data['name'] = user['name']
                     response_data['order_amount'] = (data['total_amount']-data['discounted_amount'])
                     response_data['currency'] = 'INR'
-                    response_data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                    response_data['merchantId'] = base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID'])
                     response_data['order_id'] = order_id
                     
                 
@@ -1808,14 +1845,14 @@ def customer_order(request):
                         'total_amount':"$_id.total_amount",
                         'discount':"$_id.discount",
                         'house_no': "$Ship-add.house_no",
-                        'area_street': "$Ship-add.aread_street",
+                        'area_street': "$Ship-add.area_street",
                         'add_type': "$Ship-add.add_type",
                         'pincode': "$Ship-add.pincode",
                         'state': "$Ship-add.state",
                         'city': "$Ship-add.city",
                         'order_status': "$_id.order_status",
                         'order_date': '$_id.order_date',
-                        "Order-details": "$Order_details",
+                        "Order-details": "$Order_details",     
                         },
                     }
                     ])
@@ -1831,6 +1868,167 @@ def customer_order(request):
         else:
             return JsonResponse(output_format(message='User not customer.'))
 
+@api_view(['GET'])
+def order_invoice(request, _id=None):
+    
+    if request.method == 'GET':
+
+        #fetching customer details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Order id not received.'))
+            else:
+                
+                data = database["Order"].aggregate([
+                        {
+                            "$match": {
+                                "user_id": user['_id'],
+                                "_id": _id
+                            }
+                        },
+                        {"$unwind": "$Order-details"},
+                        {
+                            "$project": {
+                                "prod_id": "$Order-details.prod_id",
+                                "prod_qty": {
+                                    "$objectToArray": "$Order-details.prod_qty"
+                                },
+                                "add_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "_id": 1,
+                                "order_date": 1,
+                                "Payment-details": 1
+                            }
+                        },
+                        {"$unwind": "$prod_qty"},
+                        {
+                            "$project": {
+                                "_id": 1,
+                                "prod_id": "$prod_id",
+                                "size": "$prod_qty.k",
+                                "qty": "$prod_qty.v",
+                                "add_id": 1,
+                                "disc_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "order_date": 1,
+                                "Payment-details": 1
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "Product",
+                                "localField": "prod_id",
+                                "foreignField": "_id",
+                                "as": "Product"
+                            }
+                        },
+                        {"$unwind": "$Product"},
+                        {
+                            "$project": {
+                                "add_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "_id": 1,
+                                "order_date": 1,
+                                "Payment-details": 1,
+                                "size": "$size",
+                                "qty": "$qty",
+                                "prod_name": "$Product.prod_name",
+                                "prod_price": "$Product.prod_price"
+                            }
+                        },
+                        {
+                            "$group": {
+                                "_id": {
+                                    "_id": "$_id",
+                                    "add_id": "$add_id",
+                                    "total_amount": "$total_amount",
+                                    "discount": "$discount",
+                                    "order_date": "$order_date",
+                                    "Payment-details": "$Payment-details"
+                                },
+                                "Order_details": {
+                                    "$push": {
+                                        "prod_name": "$prod_name",
+                                        "size": "$size",
+                                        "qty": "$qty",
+                                        "prod_price": "$prod_price"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "Ship-add",
+                                "localField": "_id.add_id",
+                                "foreignField": "_id",
+                                "as": "Ship-add"
+                            }
+                        },
+                        {"$unwind": "$Ship-add"},
+                        {
+                            "$project": {
+                                "_id": "$_id._id",
+                                "add_id": "$_id.add_id",
+                                "total_amount": "$_id.total_amount",
+                                "discount": "$_id.discount",
+                                "house_no": "$Ship-add.house_no",
+                                "user_id": "$Ship-add.user_id",
+                                "area_street": "$Ship-add.area_street",
+                                "add_type": "$Ship-add.add_type",
+                                "pincode": "$Ship-add.pincode",
+                                "state": "$Ship-add.state",
+                                "city": "$Ship-add.city",
+                                "Payment-details": "$_id.Payment-details",
+                                "order_date": "$_id.order_date",
+                                "Order-details": "$Order_details"
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "User",
+                                "localField": "user_id",
+                                "foreignField": "_id",
+                                "as": "User"
+                            }
+                        },
+                        {"$unwind": "$User"},
+                        {
+                            "$project": {
+                                "_id": "$_id",
+                                "total_amount": "$total_amount",
+                                "discount": "$discount",
+                                "house_no": "$house_no",
+                                "area_street": "$area_street",
+                                "add_type": "$add_type",
+                                "pincode": "$pincode",
+                                "state": "$state",
+                                "city": "$city",
+                                "razorpay_payment_id": "$Payment-details.razorpay_payment_id",
+                                "order_date": "$order_date",
+                                "Order-details": 1,
+                                "email": "$User.email",
+                                "name": "$User.name",
+                                "mobile_no": "$User.mobile_no"
+                            }
+                        }
+                    ])
+                
+                try:
+                    data = data.next()
+                except:
+                    return JsonResponse(output_format(message='Order not fetched.'))
+                
+                data
+            
+            
+        
+
 @api_view(['POST'])
 def verify_order(request):
     
@@ -1845,8 +2043,8 @@ def verify_order(request):
                 response = request.data['response1']
 
 
-                client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
-                                                            RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+                client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                            base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
                 if "razorpay_signature" in response:
 
                     # Verifying Payment Signature
@@ -2502,8 +2700,8 @@ def get_payment(request):
             
             
             # authorize razorpay client with API Keys.
-            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
-                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+            client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                    base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
 
             # creating order to send in response
             try:
@@ -2518,7 +2716,7 @@ def get_payment(request):
                     data['name'] = user['name']
                     data['order_amount'] = order_amount
                     data['currency'] = 'INR'
-                    data['merchantId'] = RAZORPAY_CONFIGS['RAZOR_KEY_ID']
+                    data['merchantId'] = base64decode(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']))
                 
                     return JsonResponse(output_format(message='Success!', data=data))
             except:
@@ -2544,8 +2742,8 @@ def payment_callback(request):
                 return JsonResponse(output_format(message='Wrong data format.'))
     
                         # authorize razorpay client with API Keys.
-            client = razorpay.Client(auth=(RAZORPAY_CONFIGS['RAZOR_KEY_ID'], 
-                                                    RAZORPAY_CONFIGS['RAZOR_KEY_SECRET']))
+            client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                    base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
             if "razorpay_signature" in rec_data:
 
             # Verifying Payment Signature
@@ -2564,6 +2762,8 @@ def payment_callback(request):
             else:
                 return JsonResponse(output_format(message='Not received response.'))
                 
+
+
 
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
