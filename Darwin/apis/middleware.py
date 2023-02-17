@@ -37,6 +37,8 @@ class AuthenticateMiddleware:
                         'check-discount-code',
                         'verify-order',
                         'order-invoice',
+                        'admin-contact-us',
+                        'admin-count-messages',
                     ]
         # One-time configuration and initialization.
 

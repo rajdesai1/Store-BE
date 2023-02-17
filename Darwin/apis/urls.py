@@ -44,6 +44,9 @@ urlpatterns = [
     path('product-discount/', views.product_discount, name='product-discount'),
     path('product-discount/<str:_id>/', views.product_discount, name='product-discount'),   #done
 
+    path('admin-contact-us/', views.contact_us, name='admin-contact-us'),
+    path('admin-contact-us/<str:_id>/', views.contact_us, name='admin-contact-us'),
+    path('admin-count-messages/', views.admin_count_messages, name='admin-count-messages'),
     # path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 
     # path('invoice/', views.invoice, name='invoice'),
@@ -67,8 +70,7 @@ urlpatterns = [
     
     path('checkout-user-info/', views.checkout_user_info, name='checkout-user-info'),
     
-    path('order-invoice/', views.order_invoice, name= 'order-invoice'),
-
+    path('order-invoice/<str:_id>/', views.order_invoice, name='order-invoice'),
     #open apis
     path('customer-product/', views.customer_product, name='customer-product'),
     path('customer-product/<str:_id>/', views.customer_product, name='customer-product'),

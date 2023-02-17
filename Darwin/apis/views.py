@@ -1940,7 +1940,8 @@ def order_invoice(request, _id=None):
                                 "size": "$size",
                                 "qty": "$qty",
                                 "prod_name": "$Product.prod_name",
-                                "prod_price": "$Product.prod_price"
+                                "prod_price": "$Product.prod_price",
+                                'prod_desc': '$Product.prod_desc'
                             }
                         },
                         {
@@ -1958,7 +1959,8 @@ def order_invoice(request, _id=None):
                                         "prod_name": "$prod_name",
                                         "size": "$size",
                                         "qty": "$qty",
-                                        "prod_price": "$prod_price"
+                                        "prod_price": "$prod_price",
+                                        'prod_disc': '$prod_desc'
                                     }
                                 }
                             }
@@ -1987,7 +1989,7 @@ def order_invoice(request, _id=None):
                                 "city": "$Ship-add.city",
                                 "Payment-details": "$_id.Payment-details",
                                 "order_date": "$_id.order_date",
-                                "Order-details": "$Order_details"
+                                "Order_details": "$Order_details"
                             }
                         },
                         {
@@ -2012,7 +2014,7 @@ def order_invoice(request, _id=None):
                                 "city": "$city",
                                 "razorpay_payment_id": "$Payment-details.razorpay_payment_id",
                                 "order_date": "$order_date",
-                                "Order-details": 1,
+                                "Order_details": 1,
                                 "email": "$User.email",
                                 "name": "$User.name",
                                 "mobile_no": "$User.mobile_no"
@@ -2870,7 +2872,6 @@ def admin_count_messages(request):
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
-            
 
             # fetching all messages from contact us form
             try:
