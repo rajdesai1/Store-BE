@@ -72,4 +72,5 @@ urlpatterns = [
     #open apis
     path('customer-product/', views.customer_product, name='customer-product'),
     path('customer-product/<str:_id>/', views.customer_product, name='customer-product'),
+    path('contact-us/', views.contact_us, name='contact-us'),
 ]

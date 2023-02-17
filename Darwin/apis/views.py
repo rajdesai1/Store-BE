@@ -503,7 +503,7 @@ def admin_cat_type_to_category(request, _id=None):
                     data = out.next()
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
-                    raise JsonResponse(output_format(message='Categories not fetched.'))
+                    return JsonResponse(output_format(message='Categories not fetched.'))
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
@@ -750,7 +750,7 @@ def admin_cat_to_product(request, _id=None):
                     data = out.next()
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
-                    raise JsonResponse(output_format(message='Categories not fetched.'))
+                    return JsonResponse(output_format(message='Categories not fetched.'))
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
@@ -1316,7 +1316,7 @@ def admin_purchase(request, _id=None):
         else:
             return JsonResponse(output_format(message='User not admin.'))
     
-#purchase
+##### for purchase 
     elif request.method == 'PATCH':
         #fetching user data
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
@@ -1334,7 +1334,6 @@ def admin_purchase(request, _id=None):
                 if purchase is None:
                     return JsonResponse(output_format(message='Purchase not found.'))
                 try:
-                    
                     data = json.loads(request.body)     #loading body string to json data
                     if data.get('date') is not None:
                         data['date'] = datetime.datetime.strptime(data['date'], '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -1697,14 +1696,6 @@ def customer_order(request):
             data['user_id'] = user['_id']
             data['order_status'] = 'Failed'
             
-            #inserting data
-            try:
-                order_id = create_unique_object_id()
-                data['_id'] = order_id
-                database['Order'].insert_one(data)
-                # return JsonResponse(output_format(message='Success!'))
-            except:
-                return JsonResponse(output_format(message='Order not inserted.'))
             
             # authorize razorpay client with API Keys.
             client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
@@ -1714,8 +1705,17 @@ def customer_order(request):
             # creating order to send in response
             try:
                 razorpay_order = client.order.create({
-                                'amount':100*(data['total_amount']-data['discounted_amount']), 'currency': 'INR',
+                                'amount':100*(data['total_amount']-data['discount']), 'currency': 'INR',
                                 'payment_capture': '1'})
+
+                #inserting data
+                try:
+                    order_id = create_unique_object_id()
+                    data['_id'] = order_id
+                    database['Order'].insert_one(data)
+                    # return JsonResponse(output_format(message='Success!'))
+                except:
+                    return JsonResponse(output_format(message='Order not inserted.'))
                 
                 if razorpay_order is not None:
                     
@@ -1723,7 +1723,7 @@ def customer_order(request):
                     
                     response_data['razorpay_order_id'] = razorpay_order['id']
                     response_data['name'] = user['name']
-                    response_data['order_amount'] = (data['total_amount']-data['discounted_amount'])
+                    response_data['order_amount'] = (data['total_amount']-data['discount'])
                     response_data['currency'] = 'INR'
                     response_data['merchantId'] = base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID'])
                     response_data['order_id'] = order_id
@@ -2771,9 +2771,118 @@ def payment_callback(request):
             else:
                 return JsonResponse(output_format(message='Not received response.'))
                 
+@api_view(['POST'])
+def contact_us(request):
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+        except:
+            return JsonResponse(output_format(message='Wrong data format.'))
+        
+        data['_id'] = create_unique_object_id()
+        data['status'] = 'unseen'
+        data['date'] = datetime.datetime.now()
+        data['is_deleted'] = False
+        
+        try:
+            result = database['Contact-us'].insert_one(document=data)
+            print(result.inserted_id)
+            return JsonResponse(output_format(message='Success!'))
+        except:
+            return JsonResponse(output_format(message='Message not send.'))
 
 
+@api_view(['GET', 'PATCH', 'DELETE'])
+def admin_contact_us(request, _id:None):
+    
+    if request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            # fetching all messages from contact us form
+            data = database['Contact-us'].find({'is_deleted': False}, {'is_deleted': 0})
+            
+            data = [i for i in data]
+            
+            if data == []:
+                return JsonResponse(output_format(message='No messages found.'))
+            else:
+                return JsonResponse(output_format(message='Success!', data=data))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+    
+    elif request.method == 'PATCH':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            if _id == None:
+                return JsonResponse(output_format(message='Message id not received.'))
+            else:
+                
+                try:
+                    data = json.loads(request.body)
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                result = database['Contact-us'].update_one({'_id': _id}, {'$set': data})
+                
+                if result.modified_count == 1:
+                    return JsonResponse(output_format(message='Success!'))
+                else:
+                    return JsonResponse(output_format(message='Update failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+        
+    elif request.method == 'DELETE':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            if _id == None:
+                return JsonResponse(output_format(message='Message id not received.'))
+            else:
+                
+                try:
+                    data = json.loads(request.body)
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                result = database['Contact-us'].update_one({'_id': _id}, {'$set': {'is_deleted': True}})
+                
+                if result.modified_count == 1:
+                    return JsonResponse(output_format(message='Success!'))
+                else:
+                    return JsonResponse(output_format(message='Delete failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
 
+@api_view(['GET'])
+def admin_count_messages(request):
+    
+    if request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+
+            # fetching all messages from contact us form
+            try:
+                data = {}
+                data['message_count'] = database['Contact-us'].count_documents({'status': 'unseen', 'is_deleted': False})
+                return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Count failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+ 
+            
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   
