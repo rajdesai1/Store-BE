@@ -2796,7 +2796,7 @@ def contact_us(request):
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])
-def admin_contact_us(request, _id:None):
+def admin_contact_us(request, _id=None):
     
     if request.method == 'GET':
         #fetching admin details
@@ -2849,11 +2849,6 @@ def admin_contact_us(request, _id:None):
             if _id == None:
                 return JsonResponse(output_format(message='Message id not received.'))
             else:
-                
-                try:
-                    data = json.loads(request.body)
-                except:
-                    return JsonResponse(output_format(message='Wrong data format.'))
                 
                 result = database['Contact-us'].update_one({'_id': _id}, {'$set': {'is_deleted': True}})
                 
