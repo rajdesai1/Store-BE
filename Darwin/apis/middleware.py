@@ -39,6 +39,7 @@ class AuthenticateMiddleware:
                         'order-invoice',
                         'admin-contact-us',
                         'admin-count-messages',
+                        'admin-order',
                     ]
         # One-time configuration and initialization.
 

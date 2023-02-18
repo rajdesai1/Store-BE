@@ -756,7 +756,7 @@ def admin_cat_to_product(request, _id=None):
 
                 
 
-@api_view(['POST', 'GET', 'PATCH'])
+@api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def admin_product(request, _id=None):
 
 ##### for uploading products from admin panel
@@ -819,7 +819,6 @@ def admin_product(request, _id=None):
                     return JsonResponse(output_format(message='Category not inserted.'))
         else:
             return JsonResponse(output_format(message='User not admin.'))
-
 
 ##### for getting products into admin panel
     elif request.method == 'GET':
@@ -996,21 +995,230 @@ def admin_product(request, _id=None):
                 product = database['Product'].find_one({'_id': _id, "is_deleted": False})
                 if product is None:
                     return JsonResponse(output_format(message='Product not found.'))
+
+                # this will set is_deleted=True only if every size in prod_qty is 0 or prod_qty itself is empty
+                result = database['Product'].update_one(
+                    { 
+                        "_id": _id, 
+                        '$expr': { '$eq': [ 
+                                { '$size': { '$objectToArray': "$prod_qty" } }, 
+                                { '$size': { '$filter': { 'input': { '$objectToArray': "$prod_qty" }, 'cond': { '$eq': 
+                                    [ "$$this.v", 0 ] } } } } 
+                                ] 
+                            } 
+                    },
+                    { '$set': { "is_deleted": True } })
                 
-                # product = database['Product'].find_one({'cat_type_id': _id})
-                
-                # if product is not None:
-                #     return JsonResponse(output_format(message='Category-type not deleted. Associated category present.'))
-                # else:
-                database['Product'].update_one(filter={'_id':_id}, update={'$set': {'is_deleted': True}})
-                return JsonResponse(output_format(message='Success!'))
+                if result.modified_count == 1:
+                    return JsonResponse(output_format(message='Success!'))
+                else:
+                    return JsonResponse(output_format(message='Product not deleted. Associated quantity present.'))
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
 
+@api_view(['GET', 'PATCH'])
+def admin_order(request, _id=None):
+    
+    if request.method == 'GET':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
 
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            #Query params contains filter for order's status
+            query_params = request.GET.dict()
+            order_status = query_params['order_status']
+            try:
+                # query to get all customer orders
+                data = database["Order"].aggregate([
+                        {
+                            "$match": {'order_status': order_status}
+                        },
+                        {"$unwind": "$Order-details"},
+                        {
+                            "$project": {
+                                "prod_id": "$Order-details.prod_id",
+                                "prod_qty": {
+                                    "$objectToArray": "$Order-details.prod_qty"
+                                },
+                                "add_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "_id": 1,
+                                "order_date": 1,
+                                "Payment-details": 1
+                            }
+                        },
+                        {"$unwind": "$prod_qty"},
+                        {
+                            "$project": {
+                                "_id": 1,
+                                "prod_id": "$prod_id",
+                                "size": "$prod_qty.k",
+                                "qty": "$prod_qty.v",
+                                "add_id": 1,
+                                "disc_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "order_date": 1,
+                                "Payment-details": 1
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "Product",
+                                "localField": "prod_id",
+                                "foreignField": "_id",
+                                "as": "Product"
+                            }
+                        },
+                        {"$unwind": "$Product"},
+                        {
+                            "$project": {
+                                "add_id": 1,
+                                "total_amount": 1,
+                                "discount": 1,
+                                "_id": 1,
+                                "order_date": 1,
+                                "Payment-details": 1,
+                                "size": "$size",
+                                "qty": "$qty",
+                                "prod_name": "$Product.prod_name",
+                                "prod_price": "$Product.prod_price",
+                                'prod_desc': '$Product.prod_desc'
+                            }
+                        },
+                        {
+                            "$group": {
+                                "_id": {
+                                    "_id": "$_id",
+                                    "add_id": "$add_id",
+                                    "total_amount": "$total_amount",
+                                    "discount": "$discount",
+                                    "order_date": "$order_date",
+                                    "Payment-details": "$Payment-details"
+                                },
+                                "Order_details": {
+                                    "$push": {
+                                        "prod_name": "$prod_name",
+                                        "size": "$size",
+                                        "qty": "$qty",
+                                        "prod_price": "$prod_price",
+                                        'prod_disc': '$prod_desc'
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "Ship-add",
+                                "localField": "_id.add_id",
+                                "foreignField": "_id",
+                                "as": "Ship-add"
+                            }
+                        },
+                        {"$unwind": "$Ship-add"},
+                        {
+                            "$project": {
+                                "_id": "$_id._id",
+                                "add_id": "$_id.add_id",
+                                "total_amount": "$_id.total_amount",
+                                "discount": "$_id.discount",
+                                "house_no": "$Ship-add.house_no",
+                                "user_id": "$Ship-add.user_id",
+                                "area_street": "$Ship-add.area_street",
+                                "add_type": "$Ship-add.add_type",
+                                "pincode": "$Ship-add.pincode",
+                                "state": "$Ship-add.state",
+                                "city": "$Ship-add.city",
+                                "Payment-details": "$_id.Payment-details",
+                                "order_date": "$_id.order_date",
+                                "Order_details": "$Order_details"
+                            }
+                        },
+                        {
+                            "$lookup": {
+                                "from": "User",
+                                "localField": "user_id",
+                                "foreignField": "_id",
+                                "as": "User"
+                            }
+                        },
+                        {"$unwind": "$User"},
+                        {
+                            "$project": {
+                                "_id": "$_id",
+                                "total_amount": "$total_amount",
+                                "discount": "$discount",
+                                "house_no": "$house_no",
+                                "area_street": "$area_street",
+                                "add_type": "$add_type",
+                                "pincode": "$pincode",
+                                "state": "$state",
+                                "city": "$city",
+                                "razorpay_payment_id": "$Payment-details.razorpay_payment_id",
+                                "order_date": "$order_date",
+                                "Order_details": 1,
+                                "email": "$User.email",
+                                "name": "$User.name",
+                                "mobile_no": "$User.mobile_no"
+                            }
+                        },
+                        { '$sort': { 'order_date': -1 } }
+                    ])
+           
+                data = list(data)
+                if data == []:
+                    if order_status in ('Pending', 'Delivered'):
+                        
+                        client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                        base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
+                        for order in data:
+                            razorpay_payment_id = order.get('razorpay_payment_id')
+                            if razorpay_payment_id is not None:
 
+                                output = client.payment.fetch(razorpay_payment_id)
+                                
+                                payment_method = output.get('method')
+                                if payment_method == 'card':
+                                    data['card_last4'] = output['card']['last4']
+                                elif payment_method == 'upi':
+                                    data['card_last4'] = output['upi_transaction_id']
+                                order.pop('razorpay_payment_id')
+        
+                
+                    return JsonResponse(output_format(message='Orders not found.'))
+                else:
+                    return JsonResponse(output_format(message='Success!', data=data))
+            except:
+                return JsonResponse(output_format(message='Orders not fetched.'))
 
+    elif request.method == 'PATCH':
+         #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            if _id is None:
+                return JsonResponse(output_format(message='Order id not received.'))
+            else:
+
+                data = request.data.dict()
+                order_status = data.get('order_status')
+                
+                if order_status is not None:
+                    result = database['Order'].update_one({'_id': _id}, {'$set': {'order_status': order_status}})
+                    if result.matched_count == 1 and result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success'))
+                    else:
+                        return JsonResponse(output_format(message='Update failed.'))
+                else:
+                    return JsonResponse(output_format(message='Order status not received.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+            
 # # @api_view(['POST', 'GET'])
 # # def admin_product(request, _id=None):
 
@@ -1504,7 +1712,7 @@ def customer_address(request, _id=None):
 
 
 
-@api_view(['POST', 'GET'])
+@api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def product_discount(request, _id=None):
 
 ##### for adding discount from admin panel
@@ -1516,7 +1724,7 @@ def product_discount(request, _id=None):
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
             
-            request_data = request.data
+            request_data = request.data.dict()
             data = {}
             #checking if cat_type already exists
             if database['Discount'].find_one({'coupon_code': request_data['coupon_code']}) is None:
@@ -1581,6 +1789,81 @@ def product_discount(request, _id=None):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
+    elif request.method == 'PATCH':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Discount id not received.'))
+            
+            else:
+                try:
+                    request_data = request.data.dict()
+                    data = {}
+                    data['disc_percent'] =  float(request_data['disc_percent'])
+                    data['coupon_code'] = request_data['coupon_code']   
+                    data['min_ord_val'] = float(request_data['min_ord_val'])
+                    data['valid_from'] = datetime.datetime.strptime(request_data['valid_from'], '%Y-%m-%dT%H:%M:%S.%fZ')   #date
+                    data['valid_until'] = datetime.datetime.strptime(request_data['valid_until'], '%Y-%m-%dT%H:%M:%S.%fZ')   #date
+                    data['max_disc_amt'] = float(request_data['max_disc_amt'])
+                except: 
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                discount = database['Discount'].find_one(filter={'_id': _id, 'is_deleted': False})
+                
+                if discount is None:
+                    return JsonResponse(output_format(message='Discount not found.'))
+                else:
+                
+                    result = database['Discount'].update_one(filter={'_id': _id, 'is_deleted': False},
+                                                                        update={'$set': data})
+                    print(dir(result))
+                    if result.modified_count == 1   :
+                        return JsonResponse(output_format(message='Update failed.'))
+                    else:
+                        return JsonResponse(output_format(message='Success!'))
+                        
+                    
+                    pass
+                    return JsonResponse(output_format())
+
+
+
+    elif request.method == 'DELETE':
+        #fetching user data
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+
+        #checking if user is admin
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            # checking for path parameters
+            if _id == None:
+                return JsonResponse(output_format(message='Discount id not received.'))
+            else:
+                discount = database['Discount'].find_one({'_id': _id, "is_deleted": False})
+
+                if discount is None:
+                    return JsonResponse(output_format(message='Discount not found.'))
+                else:
+                    result = database['Discount'].update_one({'_id': _id, 'is_deleted': False},
+                                                             {'$set' : {'is_deleted' : True}})
+                    
+                    if result.modified_count == 1:
+                        return JsonResponse(output_format(message='Success!'))
+                    else:
+                        return JsonResponse(output_format(message='Delete failed.'))
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+
+
+                
+          
+                
+    
 
 @api_view(['POST'])
 def check_discount_code(request):
@@ -2031,7 +2314,12 @@ def order_invoice(request, _id=None):
                                                             base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
 
                 output = client.payment.fetch(data['razorpay_payment_id'])
-                data['card_last4'] = output['card']['last4']
+                payment_method = output.get('method')
+                if payment_method == 'card':
+                    data['card_last4'] = output['card']['last4']
+                elif payment_method == 'upi':
+                    data['card_last4'] = output['upi_transaction_id']
+                    
                 data.pop('razorpay_payment_id')
                 return JsonResponse(output_format(message='Success!', data=data))
         else:
@@ -2392,8 +2680,27 @@ def customer_product(request, _id=None):
         # single product data fetch            
         else:
             try:
-                data = database['Product'].find_one(filter={"_id": _id,'is_deleted': False, 'active': True}, 
-                                                projection={'is_deleted':0, 'active':0})
+                # data = database['Product'].find_one(filter={"_id": _id,'is_deleted': False, 'active': True}, 
+                #                                 projection={'is_deleted':0, 'active':0})
+                data = database['Product'].find_one({"_id": _id,'is_deleted': False, 'active': True},
+                                                            {   
+                                                                "prod_name":1,
+                                                                "prod_desc":1,
+                                                                "cat_id":1,
+                                                                'prod_price':1,
+                                                                'prod_image':1,
+                                                                'created_at':1,
+                                                                "prod_qty": {
+                                                                '$arrayToObject': {
+                                                                    '$filter': {
+                                                                    'input': { '$objectToArray': "$prod_qty" },
+                                                                    'as': "item",
+                                                                    'cond': { '$ne': [ "$$item.v", 0 ] }
+                                                                    }
+                                                                }
+                                                                }})
+
+
                 if data is not None:
                     return JsonResponse(output_format(message='Success!', data=data)) 
                 else:
@@ -2805,7 +3112,34 @@ def admin_contact_us(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             # fetching all messages from contact us form
-            data = database['Contact-us'].find({'is_deleted': False}, {'is_deleted': 0})
+            data = database['Contact-us'].aggregate([
+                                            {
+                                                '$match': 
+                                                {'is_deleted': False}
+                                            },
+                                            {
+                                                '$lookup': {
+                                                'from': "User",
+                                                'localField': "email",
+                                                'foreignField': "email",
+                                                'as': "user"
+                                                }
+                                            },
+                                            {
+                                                '$project': {
+                                                '_id': 1,
+                                                'name': 1,
+                                                'email': 1,
+                                                'is_user': {
+                                                        '$cond': {
+                                                        'if': { '$size': "$user" },
+                                                        'then': 'User',
+                                                        'else': 'Guest'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        ])
             
             data = [i for i in data]
             
@@ -2849,7 +3183,7 @@ def admin_contact_us(request, _id=None):
             if _id == None:
                 return JsonResponse(output_format(message='Message id not received.'))
             else:
-                
+
                 result = database['Contact-us'].update_one({'_id': _id}, {'$set': {'is_deleted': True}})
                 
                 if result.modified_count == 1:
@@ -2878,7 +3212,7 @@ def admin_count_messages(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
  
-            
+          
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   
