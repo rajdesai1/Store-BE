@@ -1,21 +1,22 @@
-from django.shortcuts import render
-from django.urls import reverse
-from django.http import HttpResponse, JsonResponse
-from rest_framework.decorators import api_view
-from rest_framework.views import APIView
-from .db import database, client, jwt_secret
-from .utils import pwd_context, output_format, create_unique_object_id, send_email, convert_structure, base64decode
-import pyrebase
-from django.core.files.storage import default_storage
-from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS
 import os
-import datetime
 import json
-import jwt
+import random
 import base64
 import requests
-import random
+import datetime
+
+import jwt
 import razorpay
+import pyrebase
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view
+from django.http import HttpResponse, JsonResponse
+from django.core.files.storage import default_storage
+
+from .db import database, jwt_secret
+from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS, MEDIA_ROOT
+from .utils import (pwd_context, output_format, create_unique_object_id,
+                    send_email, convert_structure, base64decode)
 
 # Create your views here.
 
@@ -788,24 +789,27 @@ def admin_product(request, _id=None):
                 data['prod_qty'] = {}
                 data['prod_image'] = []
 
-                #renaming all product images and uploading to firebase
-                for i, file in enumerate(request.FILES.values()):
-                    filename, fileextension = os.path.splitext(file.name)
-                    if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
-                        return JsonResponse(output_format(message='Uploaded file is not an image.'))
-                    
-                    new_name = f"{prod_id}-{str(i)}{fileextension}"
-                    file.name = new_name
-                    default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
-                    
-                    #uploading here
-                    try:
-                        storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
-                        default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
-                        image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
-                        data['prod_image'].append(image_url)
-                    except:
-                        return JsonResponse(output_format(message='Cloud upload failed.'))    
+                if len(request.FILES) < 1:
+                    return JsonResponse(output_format(message='Images not received.'))
+                else:
+                    #renaming all product images and uploading to firebase
+                    for i, file in enumerate(request.FILES.values()):
+                        filename, fileextension = os.path.splitext(file.name)
+                        if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
+                            return JsonResponse(output_format(message='Uploaded file is not an image.'))
+                        
+                        new_name = f"{prod_id}-{str(i)}{fileextension}"
+                        file.name = new_name
+                        default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
+                        
+                        #uploading here
+                        try:
+                            storage.child(f'prod_image/{new_name}').put(f'{MEDIA_ROOT}/{new_name}')
+                            default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
+                            image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
+                            data['prod_image'].append(image_url)
+                        except:
+                            return JsonResponse(output_format(message='Cloud upload failed.'))    
             except:
                 return JsonResponse(output_format(message='Wrong data format.'))
             
@@ -1428,7 +1432,7 @@ def admin_purchase(request, _id=None):
                 if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
                     return JsonResponse(output_format(message='Product doesn\'t exist.'))
                 
-                # converting purchase details from recieved array to dictionary
+                # converting purchase details from received array to dictionary
                 tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
                 #adding purchased qty to the existing product
                 prod_qty = {}
@@ -1789,6 +1793,7 @@ def product_discount(request, _id=None):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
+
     elif request.method == 'PATCH':
         #fetching user data
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
@@ -1830,7 +1835,6 @@ def product_discount(request, _id=None):
                     
                     pass
                     return JsonResponse(output_format())
-
 
 
     elif request.method == 'DELETE':
@@ -1971,7 +1975,7 @@ def customer_order(request):
                     # if stock is 0 return 'out of stock'
                     elif available_qty == 0:
                         return JsonResponse(output_format(message='Product out of stock.',data={'prod_id': product['_id']}))
-                    # recieved qty is more than available qty
+                    # received qty is more than available qty
                     else:
                         return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
 
@@ -2432,7 +2436,7 @@ def verify_order(request):
 #                 #checking stock availability
 #                 elif available_qty < qty:
 #                     return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
-#                 # recieved qty is more than available qty
+#                 # received qty is more than available qty
 #                 else:
 #                     # cart_qty[f'Cart-detailsprod_qty.{size}'] = qty
 #                     continue
@@ -2499,7 +2503,7 @@ def add_to_cart(request):
                 # if stock is 0 return 'out of stock'
                 elif available_qty == 0:
                     return JsonResponse(output_format(message='Product out of stock.',data={'prod_id': product['_id']}))
-                # recieved qty is more than available qty
+                # received qty is more than available qty
                 else:
                     return JsonResponse(output_format(message='Entered more quantity then available.', data={'prod_id': product['_id'], 'available_qty': available_qty}))
 
@@ -3212,7 +3216,116 @@ def admin_count_messages(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
  
-          
+
+@api_view(['GET'])
+def rating_products(request, order_id=None):
+    
+    if request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            # fetching all messages from contact us form
+            if order_id is None:
+                return JsonResponse(output_format(message='Order id not received.'))
+            else:
+                data = database["Order"].aggregate([
+                        { '$match': { '_id': order_id, 'user_id': user['_id']} },
+                        {
+                            '$lookup': {
+                                'from': "Product",
+                                'localField': "Order-details.prod_id",
+                                'foreignField': "_id",
+                                'as': "Product",
+                            },
+                        },
+                        { '$unwind': "$Product" },
+                        {
+                            '$project': {
+                                '_id': 0,
+                                'prod_id': "$Product._id",
+                                'prod_name': "$Product.prod_name",
+                                'prod_image': { '$arrayElemAt': ["$Product.prod_image", 0] },
+                            },
+                        },
+                    ])
+                data = list(data)
+                if not data:
+                    return JsonResponse(output_format(message='Order not found.'))
+                else:
+                    return JsonResponse(output_format(message='Success!', data=data))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+
+@api_view(['GET', 'POST'])
+def customer_rating(request, order_id=None):
+    
+    if request.method == 'POST':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+
+            if order_id == None:
+                return JsonResponse(output_format(message='Order id not received.'))
+            else:
+                
+                #loading rating data from request
+                try:
+                    data = json.loads(request.body)
+                except:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+                for product_rating in data:
+                    
+                    if database['Product'].find_one({'_id': product_rating.get('prod_id')}) is None:
+                        return JsonResponse(output_format(message='Rated product not found.'))
+                    else:
+                        product_rating['order_id'] = order_id
+                        product_rating['user_id'] = user['_id']
+                        product_rating['date'] = datetime.datetime.now()
+                        product_rating['_id'] = create_unique_object_id()
+                        product_rating['rating'] = float(product_rating['rating'])
+
+                        database['Rating'].insert_one(product_rating)
+                
+                return JsonResponse(output_format(message='Success!'))             
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+    
+    
+    elif request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            # fetching all messages from contact us form
+            if order_id is None:
+                return JsonResponse(output_format(message='Order id not received.'))
+            else:
+                data = database['Rating'].find({'order_id': order_id, 'user_id': user['_idfadmin_']}, 
+                                               {'_id': 0,
+                                                'user_id': 0,
+                                                })
+                
+                data = list(data)
+                
+                if not data:
+                    return JsonResponse(output_format(message='Rating not found.'))
+                else:
+                    return JsonResponse(output_format(message='Success!', data=data))    
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+    
+@api_view(['GET'])
+def open_rating(request, prod_id=None):
+    
+    if request.method == 'GET':
+        pass
+
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   

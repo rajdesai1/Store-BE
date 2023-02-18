@@ -40,6 +40,9 @@ class AuthenticateMiddleware:
                         'admin-contact-us',
                         'admin-count-messages',
                         'admin-order',
+                        'customer-rating',
+                        'rating-products',
+                        
                     ]
         # One-time configuration and initialization.
 

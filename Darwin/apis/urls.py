@@ -74,6 +74,10 @@ urlpatterns = [
     
     path('order-invoice/<str:_id>/', views.order_invoice, name='order-invoice'),
     
+    path('rating-products/<str:order_id>/', views.rating_products, name='rating-products'),
+    
+    path('customer-rating/<str:order_id>/', views.customer_rating, name='customer-rating'),
+    
     
     #open apis
     path('customer-product/', views.customer_product, name='customer-product'),

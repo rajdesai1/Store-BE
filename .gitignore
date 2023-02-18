@@ -2,3 +2,5 @@ venv
 .DS_Store
 ht.html
 tmp.py
+Darwin/mediafiles/
+__pycache__/
