@@ -85,4 +85,5 @@ urlpatterns = [
     path('customer-product/', views.customer_product, name='customer-product'),
     path('customer-product/<str:_id>/', views.customer_product, name='customer-product'),
     path('contact-us/', views.contact_us, name='contact-us'),
+    path('suggested-product/<str:cat_id>/', views.suggested_product, name='suggested-product'),
 ]

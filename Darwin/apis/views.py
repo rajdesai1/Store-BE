@@ -232,7 +232,7 @@ def supplier(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
 
                 #getting and returning all the suppliers from the db
                 try:
@@ -266,7 +266,7 @@ def supplier(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Supplier id not received.'))
             else:
                 supplier = database['Supplier'].find_one({'_id': _id, "is_deleted": False})
@@ -292,7 +292,7 @@ def supplier(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Supplier id not received.'))
 
             else:
@@ -366,7 +366,7 @@ def cat_type(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
 
                 #getting and returning all the category-type from the db
                 try:
@@ -400,7 +400,7 @@ def cat_type(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category-type id not received.'))
             else:
                 category_type = database['Category-type'].find_one({'_id': _id, "is_deleted": False})
@@ -426,7 +426,7 @@ def cat_type(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category-type id not received.'))
 
             else:
@@ -444,8 +444,10 @@ def cat_type(request, _id=None):
                 
                 try:
                     result = database['Category-type'].update_one(filter={'_id': _id}, update= {"$set":data})
-                    if result.modified_count == 1:
+                    if (result.modified_count == 1) or (result.matched_count == 1):
                         return JsonResponse(output_format(message='Success!'))
+                    else:
+                        raise Exception
                 except:
                     return JsonResponse(output_format(message='Update failed.'))
         else:
@@ -464,7 +466,7 @@ def admin_cat_type_to_category(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category-type id not received.'))
             else:
                 
@@ -563,7 +565,7 @@ def admin_category(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 #getting and returning all the category from the db
                 try:
                     pipeline = [{
@@ -585,6 +587,7 @@ def admin_category(request, _id=None):
                                 '_id':'$Category._id',
                                 'cat_type_id': '$_id',
                                 'cat_type': '$cat_type',
+                                "cat_desc": "$Category.cat_desc",
                                 'active': '$Category.active',
                                 'cat_title': '$Category.cat_title',
                                 'cat_desc': "$Category.cat_desc",
@@ -648,7 +651,7 @@ def admin_category(request, _id=None):
             
             
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category id not received.'))
             else:
                 category_type = database['Category'].find_one({'_id': _id, "is_deleted": False})
@@ -673,7 +676,7 @@ def admin_category(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category id not received.'))
 
             else:
@@ -691,8 +694,10 @@ def admin_category(request, _id=None):
                 
                 try:
                     result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
-                    if result.modified_count == 1:
+                    if (result.modified_count == 1) or (result.matched_count == 1):
                         return JsonResponse(output_format(message='Success!'))
+                    else:
+                        raise Exception
                 except:
                     return JsonResponse(output_format(message='Update failed.'))
         else:
@@ -711,7 +716,7 @@ def admin_cat_to_product(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category id not received.'))
             else:
                 
@@ -834,7 +839,7 @@ def admin_product(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 #getting and returning all the products from the db
                 try:
                     pipeline = [{
@@ -940,7 +945,7 @@ def admin_product(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Category id not received.'))
             else:
                 product = database['Category'].find_one({'_id': _id, "is_deleted": False})
@@ -1006,7 +1011,7 @@ def admin_product(request, _id=None):
             
             
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Product id not received.'))
             else:
                 product = database['Product'].find_one({'_id': _id, "is_deleted": False})
@@ -1320,7 +1325,7 @@ def admin_order(request, _id=None):
 #         if user['role'] == 'admin' and user['_id'] == request.id:
 
 #             # checking for path parameters
-#             if _id == None:
+#             if _id is None:
 #                 #getting and returning all the products from the db
 #                 try:
 #                     pipeline = [{
@@ -1473,7 +1478,7 @@ def admin_purchase(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
                 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 #getting and returning all the products from the db
                 try:
                     pipeline = [{
@@ -1549,7 +1554,7 @@ def admin_purchase(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Purchase id not received.'))
             
             # if id is receivied
@@ -1647,7 +1652,7 @@ def customer_address(request, _id=None):
         if user['role'] == 'customer' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 #getting and returning all the products from the db
                 try:
                     data = database['Ship-add'].find({"user_id": user['_id'], 'is_deleted': False}, {"is_deleted": 0})
@@ -1680,7 +1685,7 @@ def customer_address(request, _id=None):
         if user['role'] == 'customer' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='address id not received.'))
             
             # if id is receivied
@@ -1711,7 +1716,7 @@ def customer_address(request, _id=None):
         if user['role'] == 'customer' and user['_id'] == request.id:
 
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Address id not received.'))
             else:
                 address = database['Ship-add'].find_one({'_id': _id,'user_id': user['_id'], "is_deleted": False})
@@ -1780,7 +1785,7 @@ def product_discount(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             # checking for path parameters
-            if _id == None:
+            if _id is None:
 
                 #getting and returning all the suppliers from the db
                 try:
@@ -1814,7 +1819,7 @@ def product_discount(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Discount id not received.'))
             
             else:
@@ -1854,7 +1859,7 @@ def product_discount(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Discount id not received.'))
             else:
                 discount = database['Discount'].find_one({'_id': _id, "is_deleted": False})
@@ -2177,7 +2182,7 @@ def order_invoice(request, _id=None):
         #checking if user is customer
         if user['role'] == 'customer' and user['_id'] == request.id:
             # checking for path parameters
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Order id not received.'))
             else:
                 
@@ -2633,7 +2638,7 @@ def customer_product(request, _id=None):
 
     if request.method == 'GET':
         
-        if _id == None:
+        if _id is None:
 
                 try:
 
@@ -2765,9 +2770,89 @@ def customer_product(request, _id=None):
             # return JsonResponse(output_format(message='Success!', data={'reset_url': reset_url}))
             # # f"Hello {'Raj'},\n Here is a link to reset the password for Gurukrupa Fashion Shopping Site which expires in 2 hours.\n\n\t\t{'localhost\:3000/forgot-passoword/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6eyJpZCI6IklELTY2MmY4NjFiLTZmMWQtNGMwNy05OWY0LWEwMTEzMWJmZWYzOSIsInJvbGUiOiJhZG1pbiJ9LCJleHAiOjE2NzUwMTY4NjF9.VmhDp1LnYJ2PBNaXqMP-cFmBpndxLsHSTRd8Tczzqr8/'}\nHave a nice day ahead."
 
+@api_view(['GET'])
+def suggested_product(request, cat_id=None):
 
+    if request.method == 'GET':
+        
+        if cat_id is None:
+            return JsonResponse(output_format(message='Category id not received.'))
+        else:
+                try:
 
-
+                    # Aggregate for getting all products to customer side
+                    data = database['Category-type'].aggregate([
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Category",
+                                    "localField": "_id",
+                                    "foreignField": "cat_type_id",
+                                    "as": "Category"
+                                }
+                            },
+                            {
+                                "$unwind": "$Category"
+                            },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Product",
+                                    "localField": "Category._id",
+                                    "foreignField": "cat_id",
+                                    "as": "Product"
+                                }
+                            },
+                            {
+                            "$unwind": "$Product"
+                            },
+                            {
+                                "$match": {'Product.cat_id': cat_id, 'Category.active': True, 'Product.active': True, 'active': True,
+                                           'Category.is_deleted': False, 'Product.is_deleted': False, 'is_deleted': False}
+                            },
+                            {
+                                '$lookup': {
+                                'from': "Rating",
+                                'let': { 'prod_id': "$Product._id" },
+                                'pipeline': [
+                                    { '$match': { '$expr': { '$eq': ["$prod_id", "$$prod_id"] } } },
+                                    { '$group': { '_id': "$prod_id", 'rating': { '$avg': "$rating" }, 'user_count': { '$sum': 1 } } },
+                                    { '$project': { '_id': 0 } }
+                                ],
+                                'as': "Rating"
+                                }
+                            },
+                            {
+                                "$project":
+                                {
+                                    'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, None] },
+                                    'user_count': { '$ifNull': [{ '$arrayElemAt': ["$Rating.user_count", 0] }, 0] },
+                                    "_id": "$Product._id",
+                                    "prod_name": "$Product.prod_name",
+                                    "prod_desc": "$Product.prod_desc",
+                                    "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
+                                    # "prod_image": {"$slice": ["$Product.prod_image", 2]},
+                                    "prod_price": "$Product.prod_price",
+                                    "cat_id" : "$Product.cat_id",
+                                    "cat_title": "$Category.cat_title",
+                                    "cat_type_id": "$Category.cat_type_id",
+                                    "cat_type": "$cat_type",
+                                    
+                                }
+                            },
+                            {
+                                '$sample': {
+                                    'size': 5
+                                }
+                            }])
+                    data = list(data)
+                    print(data[0])
+                    #shuffling the data using random module's shuffle
+                    random.shuffle(data)
+                    # print(data)
+                    return JsonResponse(output_format(message='Success!', data=data))
+                except:
+                    return JsonResponse(output_format(message='Products not fetched.'))
 
 @api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def cart(request):
@@ -3203,7 +3288,7 @@ def admin_contact_us(request, _id=None):
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
             
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Message id not received.'))
             else:
                 
@@ -3227,7 +3312,7 @@ def admin_contact_us(request, _id=None):
         #checking if user is admin
         if user['role'] == 'admin' and user['_id'] == request.id:
             
-            if _id == None:
+            if _id is None:
                 return JsonResponse(output_format(message='Message id not received.'))
             else:
 
@@ -3311,7 +3396,7 @@ def customer_rating(request, order_id=None):
         #checking if user is customer
         if user['role'] == 'customer' and user['_id'] == request.id:
 
-            if order_id == None:
+            if order_id is None:
                 return JsonResponse(output_format(message='Order id not received.'))
             else:
                 
@@ -3511,6 +3596,7 @@ def sales_report(request):
                 response = FileResponse(file)
                 file_name = f"sales_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
                 response['Content-Type'] = 'application/vnd.ms-excel'
+                response['Access-Control-Expose-Headers'] = 'Content-Disposition'
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
                 print(response)
                 date = datetime.datetime.now()
