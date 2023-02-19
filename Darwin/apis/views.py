@@ -1896,18 +1896,20 @@ def check_discount_code(request):
             if discount is None:
                 return JsonResponse(output_format(message='Wrong coupon code.'))
 
-############ errrorororororororororos hererererererwdsfwdsferdsfwed
+
             if discount['valid_until'] < datetime.datetime.today():
                 return JsonResponse(output_format(message='Coupon code expired.'))
             
             data = {}
             total_amount = float(request_data['total_amount'])
             print(total_amount)
-            if total_amount > discount['min_ord_val'] :
+            if total_amount > discount['min_ord_val']:
                 print(discount['disc_percent'])
                 
                 discount_percent = discount['disc_percent'] * 0.01
                 appied_disc = total_amount * discount_percent
+            else:
+                return JsonResponse(output_format(message=f'Discount code requires minimum order of {discount["min_ord_val"]}.'))
                 
             if appied_disc > discount['max_disc_amt']:
                 data['applied_disc'] = discount['max_disc_amt']
@@ -3347,17 +3349,64 @@ def customer_rating(request, order_id=None):
             if order_id is None:
                 return JsonResponse(output_format(message='Order id not received.'))
             else:
-                data = database['Rating'].find({'order_id': order_id, 'user_id': user['_idfadmin_']}, 
-                                               {'_id': 0,
-                                                'user_id': 0,
-                                                })
                 
-                data = list(data)
+                order = database['Order'].find_one({'_id': order_id, 'user_id': user['_id']})
                 
-                if not data:
-                    return JsonResponse(output_format(message='Rating not found.'))
+                if order is None:
+                    return JsonResponse(output_format(message='Order not found.'))
+                
                 else:
-                    return JsonResponse(output_format(message='Success!', data=data))    
+                    data = database['Rating'].aggregate([
+                                            { '$match' : 
+                                                {'order_id': order_id, 
+                                                 'user_id': user['_id']}
+                                            },
+                                            {
+                                                '$lookup': {
+                                                    'from': "Product",
+                                                    'localField': "prod_id",
+                                                    'foreignField': "_id",
+                                                    'as': "Product",
+                                                },
+                                            },
+                                            { '$unwind': "$Product" },
+                                            {
+                                                '$project': {
+                                                    '_id': 0,
+                                                    'prod_id': "$Product._id",
+                                                    'prod_image': { '$arrayElemAt': ["$Product.prod_image", 0] },
+                                                    'rating': '$rating',
+                                                    'date': '$date'
+                                                }
+                                            }
+                                            ])
+                    
+                    data = list(data)
+                    if not data:
+                        data = database["Order"].aggregate([
+                            { '$match': { '_id': order_id }},
+                            {
+                                '$lookup': {
+                                    'from': "Product",
+                                    'localField': "Order-details.prod_id",
+                                    'foreignField': "_id",
+                                    'as': "Product",
+                                },
+                            },
+                            { '$unwind': "$Product" },
+                            {
+                                '$project': {
+                                    '_id': 0,
+                                    'prod_id': "$Product._id",
+                                    'prod_image': { '$arrayElemAt': ["$Product.prod_image", 0] },
+                                    'rating': { '$literal': 0 },
+                                    'date': None
+                                }
+                            }
+                        ])
+                        return JsonResponse(output_format(message='Rating not found.', data=list(data)))
+                    else:
+                        return JsonResponse(output_format(message='Success!', data=data))    
         else:
             return JsonResponse(output_format(message='User not customer.'))
     
@@ -3463,6 +3512,7 @@ def sales_report(request):
                 file_name = f"sales_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
                 response['Content-Type'] = 'application/vnd.ms-excel'
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                print(response)
                 date = datetime.datetime.now()
                 date.date()
                 pass
