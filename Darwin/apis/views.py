@@ -1843,10 +1843,7 @@ def product_discount(request, _id=None):
                         return JsonResponse(output_format(message='Success!'))
                     else:
                         return JsonResponse(output_format(message='Update failed!'))
-                        
-                    
-                    pass
-                    return JsonResponse(output_format())
+
 
 
     elif request.method == 'DELETE':
@@ -2734,6 +2731,7 @@ def customer_product(request, _id=None):
                                 'prod_name': 1,
                                 'cat_id': 1,
                                 'prod_price': 1,
+                                'prod_desc':1,
                                 'prod_image': 1,
                                 'created_at': 1,
                                 'prod_qty': {'$arrayToObject': {
@@ -3363,10 +3361,11 @@ def customer_rating(request, order_id=None):
         else:
             return JsonResponse(output_format(message='User not customer.'))
     
-@api_view(['GET'])
+@api_view(['POST'])
 def sales_report(request):
     
-    if request.method == 'GET':
+    print(request.method)
+    if request.method == 'POST':
         #fetching admin details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is customer
@@ -3456,10 +3455,11 @@ def sales_report(request):
                 new = pd.concat([df,total], ignore_index=True)
                 new.index+=1
 
-                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'w+b')
+                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'wb+')
                 new.to_excel(file, index_label="No.")
-                print(file.read())
-                response = FileResponse(file.read())
+                file.seek(0)
+                # print(file.read())
+                response = FileResponse(file)
                 file_name = f"sales_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
                 response['Content-Type'] = 'application/vnd.ms-excel'
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
