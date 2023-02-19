@@ -1839,10 +1839,10 @@ def product_discount(request, _id=None):
                     result = database['Discount'].update_one(filter={'_id': _id, 'is_deleted': False},
                                                                         update={'$set': data})
                     print(dir(result))
-                    if result.modified_count == 1   :
-                        return JsonResponse(output_format(message='Update failed.'))
-                    else:
+                    if result.modified_count == 1:
                         return JsonResponse(output_format(message='Success!'))
+                    else:
+                        return JsonResponse(output_format(message='Update failed!'))
                         
                     
                     pass
