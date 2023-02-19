@@ -2726,7 +2726,7 @@ def customer_product(request, _id=None):
                             },
                             {
                                 '$project': {
-                                'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, None] },
+                                'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, 0] },
                                 'user_count': { '$ifNull': [{ '$arrayElemAt': ["$Rating.user_count", 0] }, 0] },
                                 'prod_name': 1,
                                 'cat_id': 1,
@@ -2736,7 +2736,7 @@ def customer_product(request, _id=None):
                                 'created_at': 1,
                                 'prod_qty': {'$arrayToObject': {
                                                 '$filter': {
-                                                'input': { '$objectToArray': "$Product.prod_qty" },
+                                                'input': { '$objectToArray': "prod_qty" },
                                                 'as': "item",
                                                 'cond': { '$ne': [ "$$item.v", 0 ] }
                                                 }
