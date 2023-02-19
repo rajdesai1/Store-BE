@@ -49,6 +49,8 @@ urlpatterns = [
     path('admin-count-messages/', views.admin_count_messages, name='admin-count-messages'),
     
     path('admin-order/', views.admin_order, name='admin-order'),
+    
+    path('sales-report/', views.sales_report, name='sales-report'),
     # path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 
     # path('invoice/', views.invoice, name='invoice'),

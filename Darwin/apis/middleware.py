@@ -42,7 +42,7 @@ class AuthenticateMiddleware:
                         'admin-order',
                         'customer-rating',
                         'rating-products',
-                        
+                        'sales-report',
                     ]
         # One-time configuration and initialization.
 

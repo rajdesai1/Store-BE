@@ -8,9 +8,10 @@ import datetime
 import jwt
 import razorpay
 import pyrebase
+import pandas as pd
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.core.files.storage import default_storage
 
 from .db import database, jwt_secret
@@ -139,8 +140,8 @@ def checkout_user_info(request):
                             }])
             data = list(data)
             # print(list(data))
-            if data == []:
-                return JsonResponse(output_format(message='User dosen\'t exist.'))
+            if not data:
+                return JsonResponse(output_format(message='User doesn\'t exist.'))
             else:
                 # print(list(data)[0])
                 return JsonResponse(output_format(message='Success!', data=data[0]))
@@ -247,7 +248,7 @@ def supplier(request, _id=None):
                 try:
                     data = database['Supplier'].find_one({'_id': _id, 'is_deleted': False}, {"is_deleted": 0})
                     if data is None:
-                        return JsonResponse(output_format(message='Supplier dosen\'t exist.'))
+                        return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
                     else:
                         return JsonResponse(output_format(message='Success!', data=data))
                 except:
@@ -381,7 +382,7 @@ def cat_type(request, _id=None):
                 try:
                     data = database['Category-type'].find_one({'_id': _id, 'is_deleted' : False}, {"is_deleted": 0})
                     if data is None:
-                        return JsonResponse(output_format(message='Category-type dosen\'t exist.'))
+                        return JsonResponse(output_format(message='Category-type doesn\'t exist.'))
                     else:
                         return JsonResponse(output_format(message='Success!', data=data))
                 except:
@@ -468,7 +469,7 @@ def admin_cat_type_to_category(request, _id=None):
             else:
                 
                 if database['Category-type'].find_one({'_id': _id, 'is_deleted' : False}, {"is_deleted": 0}) is None:
-                    return JsonResponse(output_format(message='Category-type dosen\'t exist.'))
+                    return JsonResponse(output_format(message='Category-type doesn\'t exist.'))
                 
                 out = database["Category-type"].aggregate(
                     [
@@ -629,8 +630,8 @@ def admin_category(request, _id=None):
                     data = database['Category-type'].aggregate(pipeline=pipeline)
                     data = list(data)
                     # print(list(data))
-                    if data == []:
-                        return JsonResponse(output_format(message='Category dosen\'t exist.'))
+                    if not data:
+                        return JsonResponse(output_format(message='Category doesn\'t exist.'))
                     else:
                         # print(list(data)[0])
                         return JsonResponse(output_format(message='Success!', data=data[0]))
@@ -715,7 +716,7 @@ def admin_cat_to_product(request, _id=None):
             else:
                 
                 if database['Category'].find_one({'_id': _id, 'is_deleted' : False}, {"is_deleted": 0}) is None:
-                    return JsonResponse(output_format(message='Category dosen\'t exist.'))
+                    return JsonResponse(output_format(message='Category doesn\'t exist.'))
                 
                 out = database["Category"].aggregate(
                     [
@@ -875,42 +876,54 @@ def admin_product(request, _id=None):
             
             # path parameter available
             else:
-                try:                
-                    pipeline = [{
-                            '$lookup':{
-                                'from':'Product',
-                                'localField':'_id',
-                                'foreignField':'cat_id',
-                                'as':'Product'
-                            }
-                        },
-                        {
-                            '$unwind':'$Product'
-                        },
-                        {
-                                "$match": { "Product._id": _id, 'is_deleted': False, 'Product.is_deleted': False }
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Product._id',
-                                'prod_name': '$Product.prod_name',
-                                'cat_id':'$_id',
-                                'cat_title': '$cat_title',
-                                'active': '$Product.active',
-                                'prod_price': '$Product.prod_price',
-                                'prod_qty': '$Product.prod_qty',
-                                'prod_desc': '$Product.prod_desc',
-                                'created_at': '$Product.created_at',
-                                'prod_image': '$Product.prod_image',
-                            }
-                        }
-                    ]
-  
-                    data = database['Category'].aggregate(pipeline=pipeline)
-                    if list(data) != []:
-                        data = list(data)
-                        print(list(data)[0])
-                        return JsonResponse(output_format(message='Product dosen\'t exist.'))
+                try:
+                    print(_id)
+                    data = database['Category-type'].aggregate([
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Category",
+                                    "localField": "_id",
+                                    "foreignField": "cat_type_id",
+                                    "as": "Category"
+                                }
+                            },
+                            {
+                                "$unwind": "$Category"
+                            },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Product",
+                                    "localField": "Category._id",
+                                    "foreignField": "cat_id",
+                                    "as": "Product"
+                                }
+                            },
+                            {
+                            "$unwind": "$Product"
+                            },
+                            {
+                                "$match": {"Product._id": _id, 'is_deleted': False, 'Product.is_deleted': False}
+                            },
+                            {
+                                "$project":
+                                {
+                                    "_id": "$Product._id",
+                                    "prod_name": "$Product.prod_name",
+                                    "prod_desc": "$Product.prod_desc",
+                                    "prod_image": "$Product.prod_image",
+                                    "prod_price": "$Product.prod_price",
+                                    "cat_id" : "$Product.cat_id",
+                                    "cat_title": "$Category.cat_title",
+                                    "cat_type_id": "$Category.cat_type_id",
+                                    "cat_type": "$cat_type",
+                                    
+                                }
+                            }])
+                    data = list(data)
+                    if not data:
+                        return JsonResponse(output_format(message='Product doesn\'t exist.'))
                     else:
                         return JsonResponse(output_format(message='Success!', data=data[0]))
                 except:
@@ -1174,7 +1187,10 @@ def admin_order(request, _id=None):
                     ])
            
                 data = list(data)
-                if data == []:
+                if not data:
+                
+                    return JsonResponse(output_format(message='Orders not found.'))
+                else:
                     if order_status in ('Pending', 'Delivered'):
                         
                         client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
@@ -1191,10 +1207,6 @@ def admin_order(request, _id=None):
                                 elif payment_method == 'upi':
                                     data['card_last4'] = output['upi_transaction_id']
                                 order.pop('razorpay_payment_id')
-        
-                
-                    return JsonResponse(output_format(message='Orders not found.'))
-                else:
                     return JsonResponse(output_format(message='Success!', data=data))
             except:
                 return JsonResponse(output_format(message='Orders not fetched.'))
@@ -1382,7 +1394,7 @@ def admin_order(request, _id=None):
 #                     if list(data) != []:
 #                         data = list(data)
 #                         print(list(data)[0])
-#                         return JsonResponse(output_format(message='Product dosen\'t exist.'))
+#                         return JsonResponse(output_format(message='Product doesn\'t exist.'))
 #                     else:
 #                         return JsonResponse(output_format(message='Success!', data=data[0]))
 #                 except:
@@ -1520,9 +1532,9 @@ def admin_purchase(request, _id=None):
                     ]
 
                 data = database['Supplier'].aggregate(pipeline=pipeline)
-                if list(data) != []:
-                    data = list(data)
-                    return JsonResponse(output_format(message='Product dosen\'t exist.'))
+                data = list(data)
+                if not data:
+                    return JsonResponse(output_format(message='Purchase doesn\'t exist.'))
                 else:
                     return JsonResponse(output_format(message='Success!', data=data[0]))
         else:
@@ -1731,7 +1743,7 @@ def product_discount(request, _id=None):
             request_data = request.data.dict()
             data = {}
             #checking if cat_type already exists
-            if database['Discount'].find_one({'coupon_code': request_data['coupon_code']}) is None:
+            if database['Discount'].find_one({'coupon_code': request_data['coupon_code'], 'is_deleted': False}) is None:
                 print(request_data)
                 #checking data format
                 try:
@@ -2147,7 +2159,7 @@ def customer_order(request):
            
                 data = list(data)
         
-                if data == []:
+                if not data:
                     return JsonResponse(output_format(message='Orders not found.'))
                 else:
                     return JsonResponse(output_format(message='Success!', data=data))
@@ -2657,12 +2669,27 @@ def customer_product(request, _id=None):
                                            'Category.is_deleted': False, 'Product.is_deleted': False, 'is_deleted': False}
                             },
                             {
+                                '$lookup': {
+                                'from': "Rating",
+                                'let': { 'prod_id': "$Product._id" },
+                                'pipeline': [
+                                    { '$match': { '$expr': { '$eq': ["$prod_id", "$$prod_id"] } } },
+                                    { '$group': { '_id': "$prod_id", 'rating': { '$avg': "$rating" }, 'user_count': { '$sum': 1 } } },
+                                    { '$project': { '_id': 0 } }
+                                ],
+                                'as': "Rating"
+                                }
+                            },
+                            {
                                 "$project":
                                 {
+                                    'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, None] },
+                                    'user_count': { '$ifNull': [{ '$arrayElemAt': ["$Rating.user_count", 0] }, 0] },
                                     "_id": "$Product._id",
                                     "prod_name": "$Product.prod_name",
                                     "prod_desc": "$Product.prod_desc",
                                     "prod_image": {"$arrayElemAt": ["$Product.prod_image", 0]},
+                                    # "prod_image": {"$slice": ["$Product.prod_image", 2]},
                                     "prod_price": "$Product.prod_price",
                                     "cat_id" : "$Product.cat_id",
                                     "cat_title": "$Category.cat_title",
@@ -2671,10 +2698,8 @@ def customer_product(request, _id=None):
                                     
                                 }
                             }])
-                    data = [i for i in data]
-                    pass
-                    print(data)
-                    pass
+                    data = list(data)
+                    print(data[0])
                     #shuffling the data using random module's shuffle
                     random.shuffle(data)
                     # print(data)
@@ -2686,23 +2711,41 @@ def customer_product(request, _id=None):
             try:
                 # data = database['Product'].find_one(filter={"_id": _id,'is_deleted': False, 'active': True}, 
                 #                                 projection={'is_deleted':0, 'active':0})
-                data = database['Product'].find_one({"_id": _id,'is_deleted': False, 'active': True},
-                                                            {   
-                                                                "prod_name":1,
-                                                                "prod_desc":1,
-                                                                "cat_id":1,
-                                                                'prod_price':1,
-                                                                'prod_image':1,
-                                                                'created_at':1,
-                                                                "prod_qty": {
-                                                                '$arrayToObject': {
-                                                                    '$filter': {
-                                                                    'input': { '$objectToArray': "$prod_qty" },
-                                                                    'as': "item",
-                                                                    'cond': { '$ne': [ "$$item.v", 0 ] }
-                                                                    }
-                                                                }
-                                                                }})
+                data = database["Product"].aggregate([
+                            {
+                                '$match': {"_id": _id,'is_deleted': False, 'active': True}
+                            },
+                            {
+                                '$lookup': {
+                                'from': "Rating",
+                                'let': { 'prod_id': "$_id" },
+                                'pipeline': [
+                                    { '$match': { '$expr': { '$eq': ["$prod_id", "$$prod_id"] } } },
+                                    { '$group': { '_id': "$prod_id", 'rating': { '$avg': "$rating" }, 'user_count': { '$sum': 1 } } },
+                                    { '$project': { '_id': 0 } }
+                                ],
+                                'as': "Rating"
+                                }
+                            },
+                            {
+                                '$project': {
+                                'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, None] },
+                                'user_count': { '$ifNull': [{ '$arrayElemAt': ["$Rating.user_count", 0] }, 0] },
+                                'prod_name': 1,
+                                'cat_id': 1,
+                                'prod_price': 1,
+                                'prod_image': 1,
+                                'created_at': 1,
+                                'prod_qty': {'$arrayToObject': {
+                                                '$filter': {
+                                                'input': { '$objectToArray': "$Product.prod_qty" },
+                                                'as': "item",
+                                                'cond': { '$ne': [ "$$item.v", 0 ] }
+                                                }
+                                            }}
+                                }
+                            }
+                            ])
 
 
                 if data is not None:
@@ -3147,7 +3190,7 @@ def admin_contact_us(request, _id=None):
             
             data = [i for i in data]
             
-            if data == []:
+            if not data:
                 return JsonResponse(output_format(message='No messages found.'))
             else:
                 return JsonResponse(output_format(message='Success!', data=data))
@@ -3321,11 +3364,114 @@ def customer_rating(request, order_id=None):
             return JsonResponse(output_format(message='User not customer.'))
     
 @api_view(['GET'])
-def open_rating(request, prod_id=None):
+def sales_report(request):
     
     if request.method == 'GET':
-        pass
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            
+            try:
+                resp_data = json.loads(request.body)     #loading body string to json data          
+                resp_data['from_date'] = datetime.datetime.strptime(resp_data['from_date'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                resp_data['until_date'] = datetime.datetime.strptime(resp_data['until_date'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+                
+            
+            data = database["Order"].aggregate([
+                        {
+                            '$match': {
+                            'order_status': { '$in': ["Pending"] },
+                            'order_date': { '$gte': resp_data['from_date'], '$lt': resp_data['until_date'] },
+                            },
+                        },
+                        { '$unwind': "$Order-details" },
+                        {
+                            '$project': {
+                            '_id': 0,
+                            'prod_id': "$Order-details.prod_id",
+                            'prod_qty': { '$objectToArray': "$Order-details.prod_qty" },
+                            },
+                        },
+                        { '$unwind': "$prod_qty" },
+                        {
+                            '$project': {
+                            'prod_id': "$prod_id",
+                            'size': "$prod_qty.k",
+                            'qty': "$prod_qty.v",
+                            },
+                        },
+                        {
+                            '$group': {
+                            '_id': { 'product_id': "$prod_id", 'prod_size': "$size" },
+                            'Quantity': { '$sum': "$qty" },
+                            },
+                        },
+                        {
+                            '$project': {
+                            '_id': 0,
+                            'prod_id': "$_id.product_id",
+                            'prod_size': "$_id.prod_size",
+                            'total_qty': "$Quantity",
+                            },
+                        },
+                        {
+                            '$lookup': {
+                            'from': "Product",
+                            'localField': "prod_id",
+                            'foreignField': "_id",
+                            'as': "Product",
+                            },
+                        },
+                        {
+                            '$unwind': "$Product",
+                        },
+                        {
+                            '$project': {
+                            "Product name": "$Product.prod_name",
+                            "Product size": "$prod_size",
+                            "Total quantity": "$total_qty",
+                            "Product price": "$Product.prod_price",
+                            },
+                        },
+                        { '$sort': { "Product name": 1 } },
+                        ])
+            
+            data = list(data)
+            # print(list(data))
+            if not data:
+                return JsonResponse(output_format(message='Records not found.'))
+            else:
+                # print(list(data)[0])
+                df = pd.DataFrame(data)
+                df['Sub total'] = df['Product price'] * df['Total quantity']
+                total = pd.DataFrame([{
+                            "Product name": "Total",
+                            # "Product size": ,
+                            # "Total quantity": ,
+                            "Sub total": sum(df['Sub total'])
+                        }])
+                new = pd.concat([df,total], ignore_index=True)
+                new.index+=1
 
+                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'w+b')
+                new.to_excel(file, index_label="No.")
+                print(file.read())
+                response = FileResponse(file.read())
+                file_name = f"sales_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
+                response['Content-Type'] = 'application/vnd.ms-excel'
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                date = datetime.datetime.now()
+                date.date()
+                pass
+                return response
+                # return JsonResponse(output_format(message='Success!', data=data))
+        else:
+            return JsonResponse(output_format(message='User not customer.'))
+
+ 
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   
