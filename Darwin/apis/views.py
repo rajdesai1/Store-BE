@@ -2736,7 +2736,7 @@ def customer_product(request, _id=None):
                                 'created_at': 1,
                                 'prod_qty': {'$arrayToObject': {
                                                 '$filter': {
-                                                'input': { '$objectToArray': "prod_qty" },
+                                                'input': { '$objectToArray': "$prod_qty" },
                                                 'as': "item",
                                                 'cond': { '$ne': [ "$$item.v", 0 ] }
                                                 }
@@ -2746,8 +2746,8 @@ def customer_product(request, _id=None):
                             ])
 
 
-                if data is not None:
-                    return JsonResponse(output_format(message='Success!', data=data)) 
+                if data:
+                    return JsonResponse(output_format(message='Success!', data=next(data))) 
                 else:
                     return JsonResponse(output_format(message='Product not found!'))
             except:
