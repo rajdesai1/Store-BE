@@ -1040,7 +1040,7 @@ def admin_product(request, _id=None):
 
 
 @api_view(['GET', 'PATCH'])
-def admin_order(request, order_status=None, _id=None):
+def admin_order(request, _id=None):
     
     if request.method == 'GET':
         #fetching user data
@@ -1050,8 +1050,8 @@ def admin_order(request, order_status=None, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             #Query params contains filter for order's status
-                query_params = request.data.dict()
-                order_status = query_params.get('order_status')
+                # query_params = request.data.dict()
+                order_status = request.query_params.get('order_status')
             # try:
                 # query to get all customer orders
                 data = database["Order"].aggregate([
@@ -1063,9 +1063,9 @@ def admin_order(request, order_status=None, _id=None):
                                             '$in' : [order_status, ['Failed', 'Pending', 'Delivered']]
                                         },
                                         'then': {
-                                            'order_status': order_status #if order_status is in those 3 values it will apply the filter otherwise it will not apply it
+                                            '$order_status': order_status #if order_status is in those 3 values it will apply the filter otherwise it will not apply it
                                         },
-                                        'else': {}
+                                        'else': True
                                     }
                                 }
                             }
@@ -1526,13 +1526,13 @@ def admin_purchase(request, _id=None):
                                 {
                                 '$project': {
                                     '_id': "$Purchase._id",
-                                    'supp_name': "$supp_name",
+                                    'supp_name': "$name",
                                     'date': "$Purchase.date",
                                     'total_amount': "$Purchase.total_amount",
                                     "Purchase-details": {
                                     'prod_id':
                                         "$Purchase.Purchase-details.prod_id",
-                                    'prod_name': "$product.name",
+                                    'prod_name': "$product.prod_name",
                                     'purch_qty':
                                         "$Purchase.Purchase-details.purch_qty",
                                     'purch_price':
@@ -1546,7 +1546,7 @@ def admin_purchase(request, _id=None):
                                     'supp_name': { '$first': "$supp_name" },
                                     'date': { '$first': "$date" },
                                     'total_amount': { '$first': "$total_amount" },
-                                    "Purchase-details": {
+                                    "Purchase_details": {
                                     '$push': "$Purchase-details",
                                     },
                                 },
@@ -3504,20 +3504,25 @@ def customer_rating(request, order_id=None):
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
                 
-                for product_rating in data:
+                #checking if products already rated
+                if database['Rating'].find_one({'order_id': order_id}) is None:
+                    return JsonResponse(output_format(message="Sorry, Can't rate product twice."))
+                else:
                     
-                    if database['Product'].find_one({'_id': product_rating.get('prod_id')}) is None:
-                        return JsonResponse(output_format(message='Rated product not found.'))
-                    else:
-                        product_rating['order_id'] = order_id
-                        product_rating['user_id'] = user['_id']
-                        product_rating['date'] = datetime.datetime.now()
-                        product_rating['_id'] = create_unique_object_id()
-                        product_rating['rating'] = float(product_rating['rating'])
+                    for product_rating in data:
+                        
+                        if database['Product'].find_one({'_id': product_rating.get('prod_id')}) is None:
+                            return JsonResponse(output_format(message='Rated product not found.'))
+                        else:
+                            product_rating['order_id'] = order_id
+                            product_rating['user_id'] = user['_id']
+                            product_rating['date'] = datetime.datetime.now()
+                            product_rating['_id'] = create_unique_object_id()
+                            product_rating['rating'] = float(product_rating['rating'])
 
-                        database['Rating'].insert_one(product_rating)
-                
-                return JsonResponse(output_format(message='Success!'))             
+                            database['Rating'].insert_one(product_rating)
+                    
+                    return JsonResponse(output_format(message='Success!'))             
         else:
             return JsonResponse(output_format(message='User not customer.'))
     

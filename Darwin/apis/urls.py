@@ -48,7 +48,7 @@ urlpatterns = [
     path('admin-contact-us/<str:_id>/', views.admin_contact_us, name='admin-contact-us'),
     path('admin-count-messages/', views.admin_count_messages, name='admin-count-messages'),
     
-    path('admin-order/<str:order_status>/', views.admin_order, name='admin-order'),
+    path('admin-order/', views.admin_order, name='admin-order'),
     path('admin-order/<str:_id>/', views.admin_order, name='admin-order'),
     
     path('sales-report/', views.sales_report, name='sales-report'),
