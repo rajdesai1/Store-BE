@@ -1531,31 +1531,76 @@ def admin_purchase(request, _id=None):
                     return JsonResponse(output_format(message='Purchases not fetched.'))
             # path parameter available
             else:
-                pipeline = [{
-                            '$lookup':{
-                                'from':'Purchase',
-                                'localField':'_id',
-                                'foreignField':'supp_id',
-                                'as':'Purchase'
+                pipeline = [
+                            {
+                                '$lookup': {
+                                'from': "Purchase",
+                                'localField': "_id",
+                                'foreignField': "supp_id",
+                                'as': "Purchase",
+                                },
+                            },
+                            { '$unwind': "$Purchase" },
+                            {
+                            '$match' : {'Purchase._id': "ID-ea75be1f-aeea-44ae-8e06-4696312bb49c"}
+                            },
+                            {
+                                '$lookup': {
+                                'from': "Product",
+                                'localField': "Purchase.Purchase-details.prod_id",
+                                'foreignField': "_id",
+                                'as': "products",
+                                },
+                            },
+                            { '$unwind': "$products" },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Category",
+                                    "localField": "products.cat_id",
+                                    "foreignField": "_id",
+                                    "as": "Category"
+                                }
+                            },
+                            { '$unwind': "$Category" },
+                            {
+                            "$lookup":
+                                {
+                                    "from": "Category-type",
+                                    "localField": "Category.cat_type_id",
+                                    "foreignField": "_id",
+                                    "as": "Category-type"
+                                }
+                            },
+                            { '$unwind': "$Category-type" },
+                            {
+                                '$project': {
+                                'cat_title': '$Category.cat_title',
+                                '_id': "$Purchase._id",
+                                'supp_name': "$name",
+                                'supp_id': "$Purchase.supp_id",
+                                'date': "$Purchase.date",
+                                'total_amount': "$Purchase.total_amount",
+                                "Purchase_details": {
+                                    '$map': {
+                                    'input': "$Purchase.Purchase-details",
+                                    'as': "detail",
+                                    'in': {
+                                        'prod_id': "$$detail.prod_id",
+                                        'prod_name': "$products.prod_name",
+                                        "cat_id": "$products.cat_id",
+                                        "cat_title": "$Category.cat_title",
+                                        "cat_type": "$Category-type.cat_type",
+                                        "cat_type_id": "$Category-type._id",
+                                        'purch_qty': "$$detail.purch_qty",
+                                        'purch_price': "$$detail.purch_price",
+                                    },
+                                    }
+                                }
+                                }
                             }
-                        },
-                        {
-                            '$unwind':'$Purchase'
-                        },
-                        {
-                            '$match' : {'Purchase._id': _id}
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Purchase._id',
-                                'supp_name': '$name',    #supplier name
-                                'date': '$Purchse.date',
-                                'total_amount': '$Purchase.total_amount',
-                                'Purchase-details':'$Purchase.Purchase-details'
-                            }
-                        }
-                    ]
-
+                            ]
+                
                 data = database['Supplier'].aggregate(pipeline=pipeline)
                 data = list(data)
                 if not data:
