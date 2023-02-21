@@ -1481,30 +1481,50 @@ def admin_purchase(request, _id=None):
             if _id is None:
                 #getting and returning all the products from the db
                 try:
-                    pipeline = [{
-                            '$lookup':{
-                                'from':'Purchase',
-                                'localField':'_id',
-                                'foreignField':'supp_id',
-                                'as':'Purchase'
-                            }
-                        },
-                        {
-                            '$unwind':'$Purchase'
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Purchase._id',
-                                'supp_name': '$name',    #supplier name
-                                'date': '$Purchse.date',
-                                'total_amount': '$Purchase.total_amount',
-                                'Purchase-details':'$Purchase.Purchase-details'
-                            }
-                        }
-                    ]
+                    pipeline = [
+                            {
+                                '$lookup': {
+                                'from': "Purchase",
+                                'localField': "_id",
+                                'foreignField': "supp_id",
+                                'as': "Purchase",
+                                },
+                            },
+                            { '$unwind': "$Purchase" },
+                            {
+                                '$lookup': {
+                                'from': "Product",
+                                'localField': "Purchase.Purchase-details.prod_id",
+                                'foreignField': "_id",
+                                'as': "products",
+                                },
+                            },
+                            { '$unwind': "$products" },
+                            {
+                                '$project': {
+                                '_id': "$Purchase._id",
+                                'supp_name': "$name",
+                                'supp_id': "$Purchase.supp_id",
+                                'date': "$Purchase.date",
+                                'total_amount': "$Purchase.total_amount",
+                                "Purchase_details": {
+                                    '$map': {
+                                    'input': "$Purchase.Purchase-details",
+                                    'as': "detail",
+                                    'in': {
+                                        'prod_id': "$$detail.prod_id",
+                                        'prod_name': "$products.prod_name",
+                                        'purch_qty': "$$detail.purch_qty",
+                                        'purch_price': "$$detail.purch_price",
+                                    },
+                                    },
+                                },
+                                },
+                            },
+                            ]
 
                     data = database['Supplier'].aggregate(pipeline=pipeline)
-                    data = [i for i in data]
+                    data = list(data)
                     print(data)
                     return JsonResponse(output_format(message='Success!', data=data))
                 except:
@@ -3262,6 +3282,9 @@ def admin_contact_us(request, _id=None):
                                                 '_id': 1,
                                                 'name': 1,
                                                 'email': 1,
+                                                'subject':1,
+                                                'message':1,
+                                                'date':1,
                                                 'is_user': {
                                                         '$cond': {
                                                         'if': { '$size': "$user" },
@@ -3593,10 +3616,12 @@ def sales_report(request):
                 new.to_excel(file, index_label="No.")
                 file.seek(0)
                 # print(file.read())
+                
+                # preparing file response to send to the server
                 response = FileResponse(file)
                 file_name = f"sales_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
                 response['Content-Type'] = 'application/vnd.ms-excel'
-                response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+                response['Access-Control-Expose-Headers'] = 'Content-Disposition'   #NOTE: this is needed to allow content-disposition to show on react's axios request without this it won't show up
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
                 print(response)
                 date = datetime.datetime.now()
