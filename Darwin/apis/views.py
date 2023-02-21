@@ -1050,13 +1050,25 @@ def admin_order(request, _id=None):
         if user['role'] == 'admin' and user['_id'] == request.id:
             
             #Query params contains filter for order's status
-            query_params = request.GET.dict()
-            order_status = query_params['order_status']
-            try:
+                query_params = request.data.dict()
+                order_status = query_params.get('order_status')
+            # try:
                 # query to get all customer orders
                 data = database["Order"].aggregate([
                         {
-                            "$match": {'order_status': order_status}
+                            "$match": {
+                                '$expr': {
+                                    '$cond': {
+                                        'if': {
+                                            '$in' : [order_status, ['Failed', 'Pending', 'Delivered']]
+                                        },
+                                        'then': {
+                                            'order_status': order_status #if order_status is in those 3 values it will apply the filter otherwise it will not apply it
+                                        },
+                                        'else': {}
+                                    }
+                                }
+                            }
                         },
                         {"$unwind": "$Order-details"},
                         {
@@ -1070,7 +1082,8 @@ def admin_order(request, _id=None):
                                 "discount": 1,
                                 "_id": 1,
                                 "order_date": 1,
-                                "Payment-details": 1
+                                "Payment-details": 1,
+                                'order_status': 1
                             }
                         },
                         {"$unwind": "$prod_qty"},
@@ -1085,7 +1098,8 @@ def admin_order(request, _id=None):
                                 "total_amount": 1,
                                 "discount": 1,
                                 "order_date": 1,
-                                "Payment-details": 1
+                                "Payment-details": 1,
+                                'order_status': 1
                             }
                         },
                         {
@@ -1105,6 +1119,7 @@ def admin_order(request, _id=None):
                                 "_id": 1,
                                 "order_date": 1,
                                 "Payment-details": 1,
+                                'order_status': 1,
                                 "size": "$size",
                                 "qty": "$qty",
                                 "prod_name": "$Product.prod_name",
@@ -1120,7 +1135,9 @@ def admin_order(request, _id=None):
                                     "total_amount": "$total_amount",
                                     "discount": "$discount",
                                     "order_date": "$order_date",
-                                    "Payment-details": "$Payment-details"
+                                    "Payment-details": "$Payment-details",
+                                    'order_status': '$order_status',
+                                    
                                 },
                                 "Order_details": {
                                     "$push": {
@@ -1149,6 +1166,7 @@ def admin_order(request, _id=None):
                                 "total_amount": "$_id.total_amount",
                                 "discount": "$_id.discount",
                                 "house_no": "$Ship-add.house_no",
+                                'order_status': '$_id.order_status',
                                 "user_id": "$Ship-add.user_id",
                                 "area_street": "$Ship-add.area_street",
                                 "add_type": "$Ship-add.add_type",
@@ -1176,6 +1194,7 @@ def admin_order(request, _id=None):
                                 "discount": "$discount",
                                 "house_no": "$house_no",
                                 "area_street": "$area_street",
+                                'order_status': '$order_status',
                                 "add_type": "$add_type",
                                 "pincode": "$pincode",
                                 "state": "$state",
@@ -1196,25 +1215,27 @@ def admin_order(request, _id=None):
                 
                     return JsonResponse(output_format(message='Orders not found.'))
                 else:
-                    if order_status in ('Pending', 'Delivered'):
+                    # if order_status in ('Pending', 'Delivered'):
                         
-                        client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
-                                                        base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
-                        for order in data:
+                    client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
+                                                    base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
+                    for order in data:
+                        if order['order_status'] in ('Pending', 'Delivered'):
                             razorpay_payment_id = order.get('razorpay_payment_id')
                             if razorpay_payment_id is not None:
 
                                 output = client.payment.fetch(razorpay_payment_id)
                                 
                                 payment_method = output.get('method')
+                                order['payment_method'] = payment_method
                                 if payment_method == 'card':
-                                    data['card_last4'] = output['card']['last4']
+                                    order['card_last4'] = output['card']['last4']
                                 elif payment_method == 'upi':
-                                    data['card_last4'] = output['upi_transaction_id']
+                                    order['upi_transaction_id'] = output['acquirer_data']['upi_transaction_id']
                                 order.pop('razorpay_payment_id')
                     return JsonResponse(output_format(message='Success!', data=data))
-            except:
-                return JsonResponse(output_format(message='Orders not fetched.'))
+            # except:
+                # return JsonResponse(output_format(message='Orders not fetched.'))
 
     elif request.method == 'PATCH':
          #fetching user data
@@ -1542,7 +1563,7 @@ def admin_purchase(request, _id=None):
                             },
                             { '$unwind': "$Purchase" },
                             {
-                            '$match' : {'Purchase._id': "ID-ea75be1f-aeea-44ae-8e06-4696312bb49c"}
+                            '$match' : {'Purchase._id': _id}
                             },
                             {
                                 '$lookup': {
