@@ -1040,7 +1040,7 @@ def admin_product(request, _id=None):
 
 
 @api_view(['GET', 'PATCH'])
-def admin_order(request, _id=None):
+def admin_order(request, order_status=None, _id=None):
     
     if request.method == 'GET':
         #fetching user data
@@ -1503,45 +1503,54 @@ def admin_purchase(request, _id=None):
                 #getting and returning all the products from the db
                 try:
                     pipeline = [
-                            {
+                                {
                                 '$lookup': {
-                                'from': "Purchase",
-                                'localField': "_id",
-                                'foreignField': "supp_id",
-                                'as': "Purchase",
+                                    'from': "Purchase",
+                                    'localField': "_id",
+                                    'foreignField': "supp_id",
+                                    'as': "Purchase",
                                 },
-                            },
-                            { '$unwind': "$Purchase" },
-                            {
+                                },
+                                { '$unwind': "$Purchase" },
+                                { '$unwind': "$Purchase.Purchase-details" },
+                                {
                                 '$lookup': {
-                                'from': "Product",
-                                'localField': "Purchase.Purchase-details.prod_id",
-                                'foreignField': "_id",
-                                'as': "products",
+                                    'from': "Product",
+                                    'localField':
+                                    "Purchase.Purchase-details.prod_id",
+                                    'foreignField': "_id",
+                                    'as': "product",
                                 },
-                            },
-                            { '$unwind': "$products" },
-                            {
+                                },
+                                { '$unwind': "$product" },
+                                {
                                 '$project': {
-                                '_id': "$Purchase._id",
-                                'supp_name': "$name",
-                                'supp_id': "$Purchase.supp_id",
-                                'date': "$Purchase.date",
-                                'total_amount': "$Purchase.total_amount",
-                                "Purchase_details": {
-                                    '$map': {
-                                    'input': "$Purchase.Purchase-details",
-                                    'as': "detail",
-                                    'in': {
-                                        'prod_id': "$$detail.prod_id",
-                                        'prod_name': "$products.prod_name",
-                                        'purch_qty': "$$detail.purch_qty",
-                                        'purch_price': "$$detail.purch_price",
-                                    },
+                                    '_id': "$Purchase._id",
+                                    'supp_name': "$supp_name",
+                                    'date': "$Purchase.date",
+                                    'total_amount': "$Purchase.total_amount",
+                                    "Purchase-details": {
+                                    'prod_id':
+                                        "$Purchase.Purchase-details.prod_id",
+                                    'prod_name': "$product.name",
+                                    'purch_qty':
+                                        "$Purchase.Purchase-details.purch_qty",
+                                    'purch_price':
+                                        "$Purchase.Purchase-details.purch_price",
                                     },
                                 },
                                 },
-                            },
+                                {
+                                '$group': {
+                                    '_id': "$_id",
+                                    'supp_name': { '$first': "$supp_name" },
+                                    'date': { '$first': "$date" },
+                                    'total_amount': { '$first': "$total_amount" },
+                                    "Purchase-details": {
+                                    '$push': "$Purchase-details",
+                                    },
+                                },
+                                },
                             ]
 
                     data = database['Supplier'].aggregate(pipeline=pipeline)
