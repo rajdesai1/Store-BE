@@ -17,7 +17,7 @@ from django.core.files.storage import default_storage
 from .db import database, jwt_secret
 from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS, MEDIA_ROOT
 from .utils import (pwd_context, output_format, create_unique_object_id,
-                    send_email, convert_structure, base64decode)
+                    send_email, convert_structure, base64decode, random_str)
 
 # Create your views here.
 
@@ -38,7 +38,7 @@ def user_profile(request):
         
         print(user.pop('password'))
         # out = [i for i in user]
-        return JsonResponse(output_format(message="Success!", data=user))
+        return JsonResponse(output_format(message='Success!', data=user))
     
     elif request.method == 'PATCH':
         #fetching user data
@@ -179,7 +179,54 @@ def change_password(request):
 def navbar_shop_category(request):
 
     
-        cats = database['Category-type'].find({'is_deleted': False, 'active': True}, {"is_deleted": 0})
+        cats = database["Category-type"].aggregate(
+                    [
+                        {
+                           
+                            "$match": {
+                            "active": True,
+                            "is_deleted": False
+                            } 
+                        },
+                        {
+                            "$lookup": {
+                            "from": "Category",
+                            "let": { "real_cat_type_id": "$_id" },
+                            "pipeline": [
+                                {
+                                "$match": {
+                                    "$expr": {
+                                    "$and": [
+                                        {
+                                        "$eq": [
+                                            "$cat_type_id",
+                                            "$$real_cat_type_id",
+                                        ],
+                                        },
+                                        { "$eq": ["$active", True] },
+                                        { "$eq": ["$is_deleted", False] },
+                                    ],
+                                    },
+                                },
+                                },
+                                {
+                                "$project": {
+                                    "_id": 1,
+                                    "cat_title": 1,
+                                },
+                                },
+                            ],
+                            "as": "Category",
+                            },
+                        },
+                        {
+                            "$project": {
+                            "_id": 1,
+                            "cat_type":1,
+                            "Category":1
+                            }
+                        }
+                    ])
         out = [i for i in cats]
         print(out)
         print('s')
@@ -804,7 +851,7 @@ def admin_product(request, _id=None):
                         if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
                             return JsonResponse(output_format(message='Uploaded file is not an image.'))
                         
-                        new_name = f"{prod_id}-{str(i)}{fileextension}"
+                        new_name = f"{prod_id}-{random_str(4)}{fileextension}"
                         file.name = new_name
                         default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
                         
@@ -946,11 +993,11 @@ def admin_product(request, _id=None):
 
             # checking for path parameters
             if _id is None:
-                return JsonResponse(output_format(message='Category id not received.'))
+                return JsonResponse(output_format(message='Product id not received.'))
             else:
-                product = database['Category'].find_one({'_id': _id, "is_deleted": False})
+                product = database['Product'].find_one({'_id': _id, "is_deleted": False})
                 if product is None:
-                    return JsonResponse(output_format(message='Category not found.'))
+                    return JsonResponse(output_format(message='Product not found.'))
                 try:
                     data = request.POST.get()
                     print(data)
@@ -960,18 +1007,34 @@ def admin_product(request, _id=None):
                         data['prod_price'] =  float(request.POST['prod_price'])
                     if data.get('active') is not None:
                         data['active'] =  True if (data['active'] in ('true','True')) else False
-                    if data.get('prod_image') is not None:
-                        update["$pull"] = { "prod_image": {"$inc": {'prod_image': [data.get('prod_image')]}} }
-                        data.pop('prod_image')
-                    update['$set'] = data
-
-                    #renaming all product images and uploading to firebase
+                        
+                    # opening firebase connection 
                     try:
-                        next(request.FILES.values())
                         firebase = pyrebase.initialize_app(FIREBASECONFIG)
                         storage = firebase.storage()
                     except:
-                        pass
+                        return JsonResponse(output_format(message='Cloud connection failed.'))
+        
+                    ## managing previous images
+                    if data.get('prod_image') is not None:
+                        
+                        existing_prod_image = product.get('prod_image')
+                        
+                        if existing_prod_image:
+                            
+                            remaining_prod_image = data['prod_image']
+                            
+                            removed_images = [i.split("%2F")[1].split("?")[0] for i in existing_prod_image if i not in remaining_prod_image]
+                            
+                            try:
+                                [storage.delete(f'prod_image/{i}', token=False) for i in removed_images]
+                            except:
+                                return JsonResponse(output_format(message='Image not delete failed.'))
+                            
+                            # update["$pull"] = { "prod_image": {"$inc": {'prod_image': [data.get('prod_image')]}} }
+                            # data.pop('prod_image')
+
+                    #renaming all product images and uploading to firebase
                     
                     #updating data
                     for i, file in enumerate(request.FILES.values()):
@@ -979,7 +1042,7 @@ def admin_product(request, _id=None):
                         if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
                             return JsonResponse(output_format(message='Uploaded file is not an image.'))
                         
-                        new_name = f"{prod_id}-{str(i)}{fileextension}"
+                        new_name = f"{prod_id}-{random_str(4)}{fileextension}"
                         file.name = new_name
                         default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
                         
@@ -988,14 +1051,16 @@ def admin_product(request, _id=None):
                             storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
                             default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
                             image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
+                            
                             data['prod_image'].append(image_url)
                         except:
                             return JsonResponse(output_format(message='Cloud upload failed.'))    
+                    update['$set'] = data
 
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
                 try:
-                    result = database['Category'].update_one(filter={'_id': _id}, update= {"$set":data})
+                    result = database['Product'].update_one(filter={'_id': _id}, update= {"$set":update})
                     if result.modified_count == 1:
                         return JsonResponse(output_format(message='Success!'))
                 except:
@@ -1253,7 +1318,7 @@ def admin_order(request, _id=None):
                 if order_status is not None:
                     result = database['Order'].update_one({'_id': _id}, {'$set': {'order_status': order_status}})
                     if result.matched_count == 1 and result.modified_count == 1:
-                        return JsonResponse(output_format(message='Success'))
+                        return JsonResponse(output_format(message='Success!'))
                     else:
                         return JsonResponse(output_format(message='Update failed.'))
                 else:
@@ -3711,9 +3776,32 @@ def sales_report(request):
                 return response
                 # return JsonResponse(output_format(message='Success!', data=data))
         else:
-            return JsonResponse(output_format(message='User not customer.'))
+            return JsonResponse(output_format(message='User not admin.'))
 
- 
+@api_view(['POST'])
+def supplier_report(request):
+
+    if request.method == 'POST':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            data = database['Supplier'].find( {'is_deleted':False}, 
+                                             {
+                                                "Name": "$name",
+                                                "Mobile No.": "$mobile_no",
+                                                "Email": "$email",
+                                                "Shop No." : "$shop_no",
+                                                "Area/Street" :"$area_street",
+                                                "City" : "city",
+                                                "State":"state",
+                                                "Pincode": "pincode",
+                                                "is_deleted": false
+                                             })
+            # try: 
+        # else:
+            return JsonResponse(output_format(message='User not admin.'))
+    
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   

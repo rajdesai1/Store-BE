@@ -1,6 +1,8 @@
 import uuid
 import jwt
 import base64
+import string
+import secrets
 from passlib.context import CryptContext
 from .db import jwt_secret, auth_collection
 from .db import database
@@ -86,6 +88,11 @@ def firebase_image_upload(request, id):
         pass
 
         # default_storage.
+
+def random_str(length:int=5) -> str:
+    alphabet = string.ascii_letters + string.digits
+    random_str = ''.join(secrets.choice(alphabet) for i in range(length))
+    return random_str.lower()
 
 def base64decode(encoded_str:str) -> str:
     sample_string_bytes = base64.b64decode(encoded_str.encode('ascii'))
