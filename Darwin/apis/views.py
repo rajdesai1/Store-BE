@@ -671,6 +671,7 @@ def admin_category(request, _id=None):
                                     "_id": "$Category._id",
                                     "cat_type_id": "$_id",
                                     "cat_type": "$cat_type",
+                                    "cat_desc": "$Category.cat_desc",
                                     "active": "$Category.active",
                                     "cat_title": "$Category.cat_title",
                                 }
@@ -966,6 +967,7 @@ def admin_product(request, _id=None):
                                     "prod_desc": "$Product.prod_desc",
                                     "prod_image": "$Product.prod_image",
                                     "prod_price": "$Product.prod_price",
+                                    "active": "$Product.active",
                                     "cat_id" : "$Product.cat_id",
                                     "cat_title": "$Category.cat_title",
                                     "cat_type_id": "$Category.cat_type_id",
@@ -3781,10 +3783,10 @@ def sales_report(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
-@api_view(['POST'])
+@api_view(['GET'])
 def supplier_report(request):
 
-    if request.method == 'POST':
+    if request.method == 'GET':
         #fetching admin details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is customer
