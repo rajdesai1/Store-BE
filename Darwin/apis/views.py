@@ -2088,6 +2088,8 @@ def check_discount_code(request):
                 data['_id'] = discount['_id']
                 data['disc_percent'] = discount['disc_percent']
             
+            data['min_ord_val'] = discount['min_ord_val']
+            data['max_disc_amt'] = discount['max_disc_amt']
             data['applied_disc'] = int(data['applied_disc'])
 
             #sending calculated data
@@ -2109,12 +2111,21 @@ def customer_order(request):
                 print(data)
             except:
                 return JsonResponse(output_format(message='Wrong data format.'))
-
+            
+            # updating user's mobile_no
+            if data.get('mobile_no') is not None:
+                user = database['User'].find_one_and_update(filter={'_id':request.id, 'role':request.role},
+                                                        update={
+                                                            '$set': {
+                                                                'mobile_no': data['mobile_no']
+                                                            }
+                                                        }, new=True)
+            
             #checking whether address exists
             order_address = database['Ship-add'].find_one(filter={'_id':data['add_id'], 'user_id':user['_id']})
             if order_address is None:
                     return JsonResponse(JsonResponse(output_format(message='Address doesn\'t exist.')))
-
+                
             #checking whether coupon code exists
             try:
                 if data.get('disc_id'):
@@ -3841,7 +3852,153 @@ def supplier_report(request):
             # try: 
         else:
             return JsonResponse(output_format(message='User not admin.'))
+
+@api_view(['GET'])
+def stock_report(request):
     
+    if request.method == 'GET':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            data = database['Product'].aggregate([
+                            {
+                                '$project': {
+                                    'prod_name': 1, 
+                                    'prod_desc': 1, 
+                                    'prod_price': 1, 
+                                    'cat_id': 1, 
+                                    'prod_qty': {
+                                        '$objectToArray': '$prod_qty'
+                                    }
+                                }
+                            }, {
+                                '$unwind': '$prod_qty'
+                            }, {
+                                '$lookup': {
+                                    'from': 'Category', 
+                                    'let': {
+                                        'real_cat_id': '$cat_id'
+                                    }, 
+                                    'pipeline': [
+                                        {
+                                            '$match': {
+                                                '$expr': {
+                                                    '$and': [
+                                                        {
+                                                            '$eq': [
+                                                                '$_id', '$$real_cat_id'
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }, {
+                                            '$lookup': {
+                                                'from': 'Category-type', 
+                                                'let': {
+                                                    'real_cat_type_id': '$cat_type_id'
+                                                }, 
+                                                'pipeline': [
+                                                    {
+                                                        '$match': {
+                                                            '$expr': {
+                                                                '$and': [
+                                                                    {
+                                                                        '$eq': [
+                                                                            '$_id', '$$real_cat_type_id'
+                                                                        ]
+                                                                    }
+                                                                ]
+                                                            }
+                                                        }
+                                                    }
+                                                ], 
+                                                'as': 'Category-type'
+                                            }
+                                        }, {
+                                            '$unwind': '$Category-type'
+                                        }, {
+                                            '$project': {
+                                                '_id': 1, 
+                                                'cat_title': '$cat_title', 
+                                                'cat_type_id': 1, 
+                                                'cat_type': '$Category-type.cat_type'
+                                            }
+                                        }
+                                    ], 
+                                    'as': 'Category'
+                                }
+                            }, {
+                                '$unwind': '$Category'
+                            }, {
+                                '$project': {
+                                    'Product name': '$prod_name', 
+                                    'Category': '$Category.cat_title', 
+                                    'Category-type': '$Category.cat_type', 
+                                    'Product description': '$prod_desc', 
+                                    'Product price': '$prod_price', 
+                                    'Size': '$prod_qty.k', 
+                                    'Quantity': '$prod_qty.v'
+                                }
+                            }, {
+                                '$match': {
+                                    'Quantity': {
+                                        '$ne': 0
+                                    }
+                                }
+                            }, {
+                                '$sort': {
+                                    'Category-type': -1, 
+                                    'Category': -1, 
+                                    'Product name': 1, 
+                                    'Size': 1
+                                }
+                            }, {
+                                '$addFields': {
+                                    'Sub total': {
+                                        '$multiply': [
+                                            '$Product price', '$Quantity'
+                                        ]
+                                    }
+                                }
+                            }
+                        ])
+            
+            data = list(data)
+            # print(list(data))
+            if not data:
+                return JsonResponse(output_format(message='Records not found.'))
+            else:
+                # print(list(data)[0])
+                df = pd.DataFrame(data)
+                total = pd.DataFrame([{
+                            "Product name": "Total",
+                            # "Product size": ,
+                            # "Total quantity": ,
+                            "Sub total": sum(df['Sub total'])
+                        }])
+                new = pd.concat([df,total], ignore_index=True)
+                new.index+=1
+
+                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'wb+')
+                new.to_excel(file, index_label="No.")
+                file.seek(0)
+                # print(file.read())
+                
+                # preparing file response to send to the server
+                response = FileResponse(file)
+                file_name = f"stock_report_{str(datetime.date.today())}.xlsx"
+                response['Content-Type'] = 'application/vnd.ms-excel'
+                response['Access-Control-Expose-Headers'] = 'Content-Disposition'   #NOTE: this is needed to allow content-disposition to show on react's axios request without this it won't show up
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                print(response)
+                date = datetime.datetime.now()
+                date.date()
+                pass
+                return response
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   

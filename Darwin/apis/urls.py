@@ -51,9 +51,14 @@ urlpatterns = [
     path('admin-order/', views.admin_order, name='admin-order'),
     path('admin-order/<str:_id>/', views.admin_order, name='admin-order'),
     
-    path('sales-report/', views.sales_report, name='sales-report'),
     
-    path('supplier-report/', views.supplier_report, name='supplier-report'),
+    # reports
+    path('sales-report/', views.sales_report, name='sales-report'),
+    path('supplier-report/', views.supplier_report, name='supplier-report'),  
+    path('stock-report/', views.stock_report, name='stock-report'),
+    
+    
+    
     
     # path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 

@@ -44,6 +44,7 @@ class AuthenticateMiddleware:
                         'rating-products',
                         'sales-report',
                         'supplier-report',
+                        'stock-report',
                     ]
         # One-time configuration and initialization.
 
