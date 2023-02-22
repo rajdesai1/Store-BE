@@ -52,6 +52,9 @@ urlpatterns = [
     path('admin-order/<str:_id>/', views.admin_order, name='admin-order'),
     
     path('sales-report/', views.sales_report, name='sales-report'),
+    
+    path('supplier-report/', views.supplier_report, name='supplier-report'),
+    
     # path('add-to-cart/', views.add_to_cart, name='add-to-cart'),
 
     # path('invoice/', views.invoice, name='invoice'),

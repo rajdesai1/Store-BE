@@ -999,7 +999,7 @@ def admin_product(request, _id=None):
                 if product is None:
                     return JsonResponse(output_format(message='Product not found.'))
                 try:
-                    data = request.POST.get()
+                    data = request.POST.dict()
                     print(data)
                     
                     update = {}
@@ -1017,6 +1017,8 @@ def admin_product(request, _id=None):
         
                     ## managing previous images
                     if data.get('prod_image') is not None:
+                        print(data['prod_image'].split(','))
+                        data['prod_image'] = data['prod_image'].split(',')
                         
                         existing_prod_image = product.get('prod_image')
                         
@@ -1026,10 +1028,11 @@ def admin_product(request, _id=None):
                             
                             removed_images = [i.split("%2F")[1].split("?")[0] for i in existing_prod_image if i not in remaining_prod_image]
                             
-                            try:
-                                [storage.delete(f'prod_image/{i}', token=False) for i in removed_images]
-                            except:
-                                return JsonResponse(output_format(message='Image not delete failed.'))
+                            # try:
+                            #     pass
+                            #     # [storage.delete(f'prod_image/{i}', token=False) for i in removed_images]
+                            # except:
+                            #     return JsonResponse(output_format(message='Image not delete failed.'))
                             
                             # update["$pull"] = { "prod_image": {"$inc": {'prod_image': [data.get('prod_image')]}} }
                             # data.pop('prod_image')
@@ -1042,13 +1045,13 @@ def admin_product(request, _id=None):
                         if fileextension not in ['.png', '.jpg', '.jpeg', '.webp']:
                             return JsonResponse(output_format(message='Uploaded file is not an image.'))
                         
-                        new_name = f"{prod_id}-{random_str(4)}{fileextension}"
+                        new_name = f"{_id}-{random_str(4)}{fileextension}"
                         file.name = new_name
                         default_storage.save(new_name, file)        #saving to local storage before uploading to the cloud
                         
                         #uploading here
                         try:
-                            storage.child(f'prod_image/{new_name}').put(f'mediafiles/{new_name}')
+                            storage.child(f'prod_image/{new_name}').put(f'{MEDIA_ROOT}/{new_name}')
                             default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
                             image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
                             
@@ -1060,7 +1063,7 @@ def admin_product(request, _id=None):
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
                 try:
-                    result = database['Product'].update_one(filter={'_id': _id}, update= {"$set":update})
+                    result = database['Product'].update_one(filter={'_id': _id}, update= update)
                     if result.modified_count == 1:
                         return JsonResponse(output_format(message='Success!'))
                 except:
@@ -3786,20 +3789,55 @@ def supplier_report(request):
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is customer
         if user['role'] == 'admin' and user['_id'] == request.id:
-            data = database['Supplier'].find( {'is_deleted':False}, 
-                                             {
-                                                "Name": "$name",
-                                                "Mobile No.": "$mobile_no",
-                                                "Email": "$email",
-                                                "Shop No." : "$shop_no",
-                                                "Area/Street" :"$area_street",
-                                                "City" : "city",
-                                                "State":"state",
-                                                "Pincode": "pincode",
-                                                "is_deleted": false
-                                             })
+            data = database['Supplier'].aggregate( [
+                                                {
+                                                    '$match': {
+                                                    'is_deleted': False,
+                                                    },
+                                                },
+                                                {
+                                                    "$project": {
+                                                    "_id":0,
+                                                    "Name": "$name",
+                                                    "Mobile No": "$mobile_no",
+                                                    "Email": "$email",
+                                                    "Shop No": "$shop_no",
+                                                    "Area/Street": "$area_street",
+                                                    "City": "$city",
+                                                    "State": "$state",
+                                                    "Pincode": "$pincode",
+                                                    },
+                                                },
+                                                ])
+            
+            data = list(data)
+            # print(list(data))
+            if not data:
+                return JsonResponse(output_format(message='Records not found.'))
+            else:
+                # print(list(data)[0])
+                df = pd.DataFrame(data)
+                df.index+=1
+
+                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'wb+')
+                df.to_excel(file, index_label="No.")
+                file.seek(0)
+                # print(file.read())
+                
+                # preparing file response to send to the server
+                response = FileResponse(file)
+                file_name = f"supplier_report_{str(datetime.date.today())}.xlsx"
+                response['Content-Type'] = 'application/vnd.ms-excel'
+                response['Access-Control-Expose-Headers'] = 'Content-Disposition'   #NOTE: this is needed to allow content-disposition to show on react's axios request without this it won't show up
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                print(response)
+                date = datetime.datetime.now()
+                date.date()
+                pass
+                return response
+                # return JsonResponse(output_format(message='Success!', data=data))
             # try: 
-        # else:
+        else:
             return JsonResponse(output_format(message='User not admin.'))
     
 # @api_view(['GET'])
