@@ -2120,6 +2120,7 @@ def customer_order(request):
                                                                 'mobile_no': data['mobile_no']
                                                             }
                                                         }, new=True)
+                data.pop('mobile_no')
             
             #checking whether address exists
             order_address = database['Ship-add'].find_one(filter={'_id':data['add_id'], 'user_id':user['_id']})
