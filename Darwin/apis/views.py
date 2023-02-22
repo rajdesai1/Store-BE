@@ -1063,8 +1063,8 @@ def admin_order(request, _id=None):
                                             '$in' : [order_status, ['Failed', 'Pending', 'Delivered']]
                                         },
                                         'then': {
-                                            '$order_status': order_status #if order_status is in those 3 values it will apply the filter otherwise it will not apply it
-                                        },
+                                        '$eq': ["$order_status", order_status],
+                                    },
                                         'else': True
                                     }
                                 }
@@ -3505,8 +3505,9 @@ def customer_rating(request, order_id=None):
                     return JsonResponse(output_format(message='Wrong data format.'))
                 
                 #checking if products already rated
-                if database['Rating'].find_one({'order_id': order_id}) is None:
-                    return JsonResponse(output_format(message="Sorry, Can't rate product twice."))
+                if database['Rating'].find_one({'order_id': order_id}) is not None:
+                    return JsonResponse(output_format(message="Sorry, Can't rate an order twice."))
+
                 else:
                     
                     for product_rating in data:
