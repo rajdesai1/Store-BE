@@ -3685,7 +3685,7 @@ def sales_report(request):
             data = database["Order"].aggregate([
                         {
                             '$match': {
-                            'order_status': { '$in': ["Pending"] },
+                            'order_status': { '$in': ["Pending", "Delivered"] },
                             'order_date': { '$gte': resp_data['from_date'], '$lt': resp_data['until_date'] },
                             },
                         },
