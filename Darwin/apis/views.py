@@ -2113,14 +2113,14 @@ def customer_order(request):
                 return JsonResponse(output_format(message='Wrong data format.'))
             
             # updating user's mobile_no
-            if data.get('mobile_no') is not None:
+            mobile_no = data.pop('mobile_no', None)
+            if mobile_no is not None:
                 user = database['User'].find_one_and_update(filter={'_id':request.id, 'role':request.role},
                                                         update={
                                                             '$set': {
-                                                                'mobile_no': data['mobile_no']
+                                                                'mobile_no': mobile_no
                                                             }
                                                         }, new=True)
-                data.pop('mobile_no')
             
             #checking whether address exists
             order_address = database['Ship-add'].find_one(filter={'_id':data['add_id'], 'user_id':user['_id']})
