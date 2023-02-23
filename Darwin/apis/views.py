@@ -1715,7 +1715,7 @@ def admin_purchase(request, _id=None):
                                                                 ]
                                                             }, {
                                                                 '$eq': [
-                                                                    '$_id', 'ID-75753f46-32b8-4d55-9bc6-75dfe4d6deec'
+                                                                    '$_id', _id
                                                                 ]
                                                             }
                                                         ]
