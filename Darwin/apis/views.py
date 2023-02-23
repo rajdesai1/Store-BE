@@ -891,35 +891,61 @@ def admin_product(request, _id=None):
             if _id is None:
                 #getting and returning all the products from the db
                 try:
-                    pipeline = [{
-                            '$lookup':{
-                                'from':'Product',
-                                'localField':'_id',
-                                'foreignField':'cat_id',
-                                'as':'Product'
-                            }
-                        },
-                        {
-                            '$unwind':'$Product'
-                        },
-                        {
-                            "$match": {'Product.is_deleted': False, 'is_deleted': False}
-                        },
-                        {
-                            '$project': {
-                                '_id': '$Product._id',
-                                'prod_name': '$Product.prod_name',
-                                'cat_id':'$_id',
-                                'cat_title': '$cat_title',
-                                'active': '$Product.active',
-                                'prod_price': '$Product.prod_price',
-                                'prod_qty': '$Product.prod_qty',
-                                'prod_desc': '$Product.prod_desc',
-                                'created_at': '$Product.created_at',
-                                'prod_image': '$Product.prod_image',
-                            }
-                        }
-                    ]
+                    pipeline = [
+                                    {
+                                        '$lookup': {
+                                            'from': 'Product', 
+                                            'localField': '_id', 
+                                            'foreignField': 'cat_id', 
+                                            'as': 'Product'
+                                        }
+                                    }, {
+                                        '$unwind': '$Product'
+                                    }, {
+                                        '$match': {
+                                            'Product._id': 'ID-f8cfc994-fdf3-495b-85f6-4d5692accee9', 
+                                            'Product.is_deleted': False, 
+                                            'is_deleted': False
+                                        }
+                                    }, {
+                                        '$project': {
+                                            '_id': '$Product._id', 
+                                            'prod_name': '$Product.prod_name', 
+                                            'cat_id': '$_id', 
+                                            'cat_title': '$cat_title', 
+                                            'active': '$Product.active', 
+                                            'prod_price': '$Product.prod_price', 
+                                            'prod_qty': '$Product.prod_qty', 
+                                            'prod_desc': '$Product.prod_desc', 
+                                            'created_at': '$Product.created_at', 
+                                            'prod_image': '$Product.prod_image', 
+                                            'prod_qty': {
+                                                '$objectToArray': '$Product.prod_qty'
+                                            }
+                                        }
+                                    }, {
+                                        '$project': {
+                                            '_id': '$_id', 
+                                            'prod_name': '$prod_name', 
+                                            'cat_id': '$cat_id', 
+                                            'cat_title': '$cat_title', 
+                                            'active': '$active', 
+                                            'prod_price': '$prod_price', 
+                                            'prod_qty': {
+                                                '$map': {
+                                                    'input': '$prod_qty', 
+                                                    'in': {
+                                                        'size': '$$this.k', 
+                                                        'qty': '$$this.v'
+                                                    }
+                                                }
+                                            }, 
+                                            'prod_desc': '$prod_desc', 
+                                            'created_at': '$created_at', 
+                                            'prod_image': '$prod_image'
+                                        }
+                                    }
+                                ]
 
                     data = database['Category'].aggregate(pipeline=pipeline)
                     data = [i for i in data]
@@ -1535,7 +1561,7 @@ def admin_purchase(request, _id=None):
                 return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
             
             #processing Purchase details
-            for product_details in data['Purchase-details']:
+            for i, product_details in enumerate(data['Purchase-details']):
                 
                 #checking whether product exists or not
                 if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
@@ -1543,6 +1569,8 @@ def admin_purchase(request, _id=None):
                 
                 # converting purchase details from received array to dictionary
                 tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
+                data['Purchase-details'][i]['purch_qty'] = tmp
+
                 #adding purchased qty to the existing product
                 prod_qty = {}
                 for size, qty in tmp.items():
@@ -1574,55 +1602,92 @@ def admin_purchase(request, _id=None):
                 #getting and returning all the products from the db
                 try:
                     pipeline = [
-                                {
-                                '$lookup': {
-                                    'from': "Purchase",
-                                    'localField': "_id",
-                                    'foreignField': "supp_id",
-                                    'as': "Purchase",
-                                },
-                                },
-                                { '$unwind': "$Purchase" },
-                                { '$unwind': "$Purchase.Purchase-details" },
-                                {
-                                '$lookup': {
-                                    'from': "Product",
-                                    'localField':
-                                    "Purchase.Purchase-details.prod_id",
-                                    'foreignField': "_id",
-                                    'as': "product",
-                                },
-                                },
-                                { '$unwind': "$product" },
-                                {
-                                '$project': {
-                                    '_id': "$Purchase._id",
-                                    'supp_name': "$name",
-                                    'date': "$Purchase.date",
-                                    'total_amount': "$Purchase.total_amount",
-                                    "Purchase-details": {
-                                    'prod_id':
-                                        "$Purchase.Purchase-details.prod_id",
-                                    'prod_name': "$product.prod_name",
-                                    'purch_qty':
-                                        "$Purchase.Purchase-details.purch_qty",
-                                    'purch_price':
-                                        "$Purchase.Purchase-details.purch_price",
-                                    },
-                                },
-                                },
-                                {
-                                '$group': {
-                                    '_id': "$_id",
-                                    'supp_name': { '$first': "$supp_name" },
-                                    'date': { '$first': "$date" },
-                                    'total_amount': { '$first': "$total_amount" },
-                                    "Purchase_details": {
-                                    '$push': "$Purchase-details",
-                                    },
-                                },
-                                },
-                            ]
+                                    {
+                                        '$lookup': {
+                                            'from': 'Purchase', 
+                                            'localField': '_id', 
+                                            'foreignField': 'supp_id', 
+                                            'as': 'Purchase'
+                                        }
+                                    }, {
+                                        '$unwind': '$Purchase'
+                                    }, {
+                                        '$unwind': '$Purchase.Purchase-details'
+                                    }, {
+                                        '$lookup': {
+                                            'from': 'Product', 
+                                            'let': {
+                                                'real_prod_id': '$Purchase.Purchase-details.prod_id'
+                                            }, 
+                                            'pipeline': [
+                                                {
+                                                    '$match': {
+                                                        '$expr': {
+                                                            '$eq': [
+                                                                '$_id', '$$real_prod_id'
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ], 
+                                            'as': 'product'
+                                        }
+                                    }, {
+                                        '$unwind': '$product'
+                                    }, {
+                                        '$project': {
+                                            '_id': '$Purchase._id', 
+                                            'supp_name': '$name', 
+                                            'date': '$Purchase.date', 
+                                            'total_amount': '$Purchase.total_amount', 
+                                            'Purchase-details': {
+                                                'prod_id': '$Purchase.Purchase-details.prod_id', 
+                                                'prod_name': '$product.prod_name', 
+                                                'purch_qty': {
+                                                    '$objectToArray': '$Purchase.Purchase-details.purch_qty'
+                                                }, 
+                                                'purch_price': '$Purchase.Purchase-details.purch_price'
+                                            }
+                                        }
+                                    }, {
+                                        '$project': {
+                                            '_id': 1, 
+                                            'supp_name': 1, 
+                                            'date': 1, 
+                                            'total_amount': 1, 
+                                            'Purchase-details': {
+                                                'prod_id': '$Purchase-details.prod_id', 
+                                                'prod_name': '$Purchase-details.prod_name', 
+                                                'purch_price': '$Purchase-details.purch_price', 
+                                                'purch_qty': {
+                                                    '$map': {
+                                                        'input': '$Purchase-details.purch_qty', 
+                                                        'in': {
+                                                            'size': '$$this.k', 
+                                                            'qty': '$$this.v'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }, {
+                                        '$group': {
+                                            '_id': '$_id', 
+                                            'supp_name': {
+                                                '$first': '$supp_name'
+                                            }, 
+                                            'date': {
+                                                '$first': '$date'
+                                            }, 
+                                            'total_amount': {
+                                                '$first': '$total_amount'
+                                            }, 
+                                            'Purchase_details': {
+                                                '$push': '$Purchase-details'
+                                            }
+                                        }
+                                    }
+                                ]
 
                     data = database['Supplier'].aggregate(pipeline=pipeline)
                     data = list(data)
@@ -1633,73 +1698,183 @@ def admin_purchase(request, _id=None):
             # path parameter available
             else:
                 pipeline = [
-                            {
-                                '$lookup': {
-                                'from': "Purchase",
-                                'localField': "_id",
-                                'foreignField': "supp_id",
-                                'as': "Purchase",
-                                },
-                            },
-                            { '$unwind': "$Purchase" },
-                            {
-                            '$match' : {'Purchase._id': _id}
-                            },
-                            {
-                                '$lookup': {
-                                'from': "Product",
-                                'localField': "Purchase.Purchase-details.prod_id",
-                                'foreignField': "_id",
-                                'as': "products",
-                                },
-                            },
-                            { '$unwind': "$products" },
-                            {
-                            "$lookup":
                                 {
-                                    "from": "Category",
-                                    "localField": "products.cat_id",
-                                    "foreignField": "_id",
-                                    "as": "Category"
-                                }
-                            },
-                            { '$unwind': "$Category" },
-                            {
-                            "$lookup":
-                                {
-                                    "from": "Category-type",
-                                    "localField": "Category.cat_type_id",
-                                    "foreignField": "_id",
-                                    "as": "Category-type"
-                                }
-                            },
-                            { '$unwind': "$Category-type" },
-                            {
-                                '$project': {
-                                'cat_title': '$Category.cat_title',
-                                '_id': "$Purchase._id",
-                                'supp_name': "$name",
-                                'supp_id': "$Purchase.supp_id",
-                                'date': "$Purchase.date",
-                                'total_amount': "$Purchase.total_amount",
-                                "Purchase_details": {
-                                    '$map': {
-                                    'input': "$Purchase.Purchase-details",
-                                    'as': "detail",
-                                    'in': {
-                                        'prod_id': "$$detail.prod_id",
-                                        'prod_name': "$products.prod_name",
-                                        "cat_id": "$products.cat_id",
-                                        "cat_title": "$Category.cat_title",
-                                        "cat_type": "$Category-type.cat_type",
-                                        "cat_type_id": "$Category-type._id",
-                                        'purch_qty': "$$detail.purch_qty",
-                                        'purch_price': "$$detail.purch_price",
-                                    },
+                                    '$lookup': {
+                                        'from': 'Purchase', 
+                                        'let': {
+                                            'real_supplier_id': '$_id'
+                                        }, 
+                                        'pipeline': [
+                                            {
+                                                '$match': {
+                                                    '$expr': {
+                                                        '$and': [
+                                                            {
+                                                                '$eq': [
+                                                                    '$supp_id', '$$real_supplier_id'
+                                                                ]
+                                                            }, {
+                                                                '$eq': [
+                                                                    '$_id', 'ID-75753f46-32b8-4d55-9bc6-75dfe4d6deec'
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        ], 
+                                        'as': 'Purchase'
+                                    }
+                                }, {
+                                    '$unwind': '$Purchase'
+                                }, {
+                                    '$unwind': '$Purchase.Purchase-details'
+                                }, {
+                                    '$lookup': {
+                                        'from': 'Product', 
+                                        'let': {
+                                            'real_prod_id': '$Purchase.Purchase-details.prod_id'
+                                        }, 
+                                        'pipeline': [
+                                            {
+                                                '$match': {
+                                                    '$expr': {
+                                                        '$eq': [
+                                                            '$_id', '$$real_prod_id'
+                                                        ]
+                                                    }
+                                                }
+                                            }, {
+                                                '$lookup': {
+                                                    'from': 'Category', 
+                                                    'let': {
+                                                        'real_cat_id': '$cat_id'
+                                                    }, 
+                                                    'pipeline': [
+                                                        {
+                                                            '$match': {
+                                                                '$expr': {
+                                                                    '$and': [
+                                                                        {
+                                                                            '$eq': [
+                                                                                '$_id', '$$real_cat_id'
+                                                                            ]
+                                                                        }
+                                                                    ]
+                                                                }
+                                                            }
+                                                        }, {
+                                                            '$lookup': {
+                                                                'from': 'Category-type', 
+                                                                'let': {
+                                                                    'real_cat_type_id': '$cat_type_id'
+                                                                }, 
+                                                                'pipeline': [
+                                                                    {
+                                                                        '$match': {
+                                                                            '$expr': {
+                                                                                '$and': [
+                                                                                    {
+                                                                                        '$eq': [
+                                                                                            '$_id', '$$real_cat_type_id'
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                ], 
+                                                                'as': 'Category-type'
+                                                            }
+                                                        }, {
+                                                            '$unwind': '$Category-type'
+                                                        }
+                                                    ], 
+                                                    'as': 'Category'
+                                                }
+                                            }, {
+                                                '$unwind': '$Category'
+                                            }, {
+                                                '$project': {
+                                                    '_id': 1, 
+                                                    'prod_name': '$prod_name', 
+                                                    'cat_id': '$Category._id', 
+                                                    'cat_title': '$Category.cat_title', 
+                                                    'cat_type_id': '$Category.Category-type._id', 
+                                                    'cat_type': '$Category.Category-type.cat_type'
+                                                }
+                                            }
+                                        ], 
+                                        'as': 'Product'
+                                    }
+                                }, {
+                                    '$unwind': '$Product'
+                                }, {
+                                    '$project': {
+                                        '_id': '$Purchase._id', 
+                                        'supp_name': '$name', 
+                                        'supp_id': '$_id', 
+                                        'date': '$Purchase.date', 
+                                        'total_amount': '$Purchase.total_amount', 
+                                        'Purchase-details': {
+                                            'prod_id': '$Product.prod_id', 
+                                            'cat_id': '$Product.cat_id', 
+                                            'cat_title': '$Product.cat_title', 
+                                            'cat_type_id': '$Product.cat_type_id', 
+                                            'cat_type': '$Product.cat_type', 
+                                            'prod_name': '$Product.prod_name', 
+                                            'purch_qty': {
+                                                '$objectToArray': '$Purchase.Purchase-details.purch_qty'
+                                            }, 
+                                            'purch_price': '$Purchase.Purchase-details.purch_price'
+                                        }
+                                    }
+                                }, {
+                                    '$project': {
+                                        '_id': 1, 
+                                        'supp_name': 1, 
+                                        'supp_id': 1, 
+                                        'date': 1, 
+                                        'total_amount': 1, 
+                                        'Purchase-details': {
+                                            'prod_id': '$Purchase-details.prod_id', 
+                                            'prod_name': '$Purchase-details.prod_name', 
+                                            'cat_id': '$Purchase-details.cat_id', 
+                                            'cat_title': '$Purchase-details.cat_title', 
+                                            'purch_price': '$Purchase-details.purch_price', 
+                                            'cat_type_id': '$Purchase-details.cat_type_id', 
+                                            'cat_type': '$Purchase-details.cat_type', 
+                                            'purch_qty': {
+                                                '$map': {
+                                                    'input': '$Purchase-details.purch_qty', 
+                                                    'in': {
+                                                        'size': '$$this.k', 
+                                                        'qty': '$$this.v'
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }, {
+                                    '$group': {
+                                        '_id': '$_id', 
+                                        'supp_id': {
+                                            '$first': '$supp_id'
+                                        }, 
+                                        'supp_name': {
+                                            '$first': '$supp_name'
+                                        }, 
+                                        'date': {
+                                            '$first': '$date'
+                                        }, 
+                                        'total_amount': {
+                                            '$first': '$total_amount'
+                                        }, 
+                                        'Purchase_details': {
+                                            '$push': '$Purchase-details'
+                                        }
                                     }
                                 }
-                                }
-                            }
                             ]
                 
                 data = database['Supplier'].aggregate(pipeline=pipeline)
