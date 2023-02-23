@@ -4,6 +4,7 @@ import random
 import base64
 import requests
 import datetime
+import uuid
 
 import jwt
 import razorpay
@@ -2510,14 +2511,28 @@ def order_invoice(request, _id=None):
                 client = razorpay.Client(auth=(base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID']), 
                                                             base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_SECRET'])))
 
-                output = client.payment.fetch(data['razorpay_payment_id'])
-                payment_method = output.get('method')
-                if payment_method == 'card':
-                    data['card_last4'] = output['card']['last4']
-                elif payment_method == 'upi':
-                    data['card_last4'] = output['upi_transaction_id']
+                # output = client.payment.fetch(data['razorpay_payment_id'])
+                # payment_method = output.get('method')
+                # if payment_method == 'card':
+                #     data['card_last4'] = output['card']['last4']
+                # elif payment_method == 'upi':
+                #     data['card_last4'] = output['upi_transaction_id']
                     
-                data.pop('razorpay_payment_id')
+               
+                razorpay_payment_id = data.get('razorpay_payment_id')
+                if razorpay_payment_id is not None:
+
+                    output = client.payment.fetch(razorpay_payment_id)
+                                
+                    payment_method = output.get('method')
+                    data['payment_method'] = payment_method
+                    if payment_method == 'card':
+                        data['card_last4'] = output['card']['last4']
+                    elif payment_method == 'upi':
+                        data['upi_transaction_id'] = output['acquirer_data']['upi_transaction_id']
+                    data.pop('razorpay_payment_id')
+
+                data['_id'] = uuid.UUID(data['_id'].strip('ID-')).hex.upper()
                 return JsonResponse(output_format(message='Success!', data=data))
         else:
             return JsonResponse(output_format(message='User not customer.'))
@@ -3876,6 +3891,8 @@ def stock_report(request):
                             }, {
                                 '$unwind': '$prod_qty'
                             }, {
+                                '$match': {"prod_qty.v": { "$ne":  0}}
+                            }, {
                                 '$lookup': {
                                     'from': 'Category', 
                                     'let': {
@@ -3941,12 +3958,6 @@ def stock_report(request):
                                     'Product price': '$prod_price', 
                                     'Size': '$prod_qty.k', 
                                     'Quantity': '$prod_qty.v'
-                                }
-                            }, {
-                                '$match': {
-                                    'Quantity': {
-                                        '$ne': 0
-                                    }
                                 }
                             }, {
                                 '$sort': {
