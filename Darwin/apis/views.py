@@ -3630,6 +3630,7 @@ def admin_contact_us(request, _id=None):
                                                 'name': 1,
                                                 'email': 1,
                                                 'subject':1,
+                                                'status':1,
                                                 'message':1,
                                                 'date':1,
                                                 'is_user': {
