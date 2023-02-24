@@ -53,13 +53,14 @@ urlpatterns = [
     
     path('admin-user-count/', views.admin_user_count, name='admin-user-count'),
     
-    path('admin-order-coount', views.admin_order_count, name='admin-order-count'),
+    path('admin-order-count/', views.admin_order_count, name='admin-order-count'),
     
     
     # reports
     path('sales-report/', views.sales_report, name='sales-report'),
     path('supplier-report/', views.supplier_report, name='supplier-report'),  
     path('stock-report/', views.stock_report, name='stock-report'),
+    path('purchase-report/', views.purchase_report, name='purchase-report'),
     
     
     

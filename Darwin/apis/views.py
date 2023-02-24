@@ -4076,8 +4076,7 @@ def customer_rating(request, order_id=None):
 
 @api_view(['POST'])
 def sales_report(request):
-    
-    print(request.method)
+
     if request.method == 'POST':
         #fetching admin details
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
@@ -4398,105 +4397,189 @@ def purchase_report(request):
         user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
         #checking if user is customer
         if user['role'] == 'admin' and user['_id'] == request.id:
-            data = database['Product'].aggregate([
-                            {
-                                '$project': {
-                                    'prod_name': 1, 
-                                    'prod_desc': 1, 
-                                    'prod_price': 1, 
-                                    'cat_id': 1, 
-                                    'prod_qty': {
-                                        '$objectToArray': '$prod_qty'
-                                    }
-                                }
-                            }, {
-                                '$unwind': '$prod_qty'
-                            }, {
-                                '$match': {"prod_qty.v": { "$ne":  0}}
-                            }, {
-                                '$lookup': {
-                                    'from': 'Category', 
-                                    'let': {
-                                        'real_cat_id': '$cat_id'
-                                    }, 
-                                    'pipeline': [
-                                        {
-                                            '$match': {
-                                                '$expr': {
-                                                    '$and': [
-                                                        {
-                                                            '$eq': [
-                                                                '$_id', '$$real_cat_id'
-                                                            ]
-                                                        }
-                                                    ]
-                                                }
-                                            }
-                                        }, {
-                                            '$lookup': {
-                                                'from': 'Category-type', 
-                                                'let': {
-                                                    'real_cat_type_id': '$cat_type_id'
+            
+            try:
+                resp_data = json.loads(request.body)     #loading body string to json data          
+                resp_data['from_date'] = datetime.datetime.strptime(resp_data['from_date'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                resp_data['until_date'] = datetime.datetime.strptime(resp_data['until_date'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            except:
+                return JsonResponse(output_format(message='Wrong data format.'))
+                
+            
+            print({ '$gte': resp_data['from_date'], '$lt': resp_data['until_date'] })
+            data = database["Purchase"].aggregate([
+                                                {
+                                                    '$match': {
+                                                        'date': { '$gte': resp_data['from_date'], '$lt': resp_data['until_date'] }
+                                                    }
                                                 }, 
-                                                'pipeline': [
-                                                    {
-                                                        '$match': {
-                                                            '$expr': {
-                                                                '$and': [
-                                                                    {
-                                                                        '$eq': [
-                                                                            '$_id', '$$real_cat_type_id'
-                                                                        ]
-                                                                    }
-                                                                ]
-                                                            }
+                                                {
+                                                    '$unwind': '$Purchase-details'
+                                                }, {
+                                                    '$project': {
+                                                        'supp_id': '$supp_id', 
+                                                        'prod_id': '$Purchase-details.prod_id', 
+                                                        'purch_price': '$Purchase-details.purch_price', 
+                                                        'prod_qty': {
+                                                            '$objectToArray': '$Purchase-details.purch_qty'
                                                         }
                                                     }
-                                                ], 
-                                                'as': 'Category-type'
-                                            }
-                                        }, {
-                                            '$unwind': '$Category-type'
-                                        }, {
-                                            '$project': {
-                                                '_id': 1, 
-                                                'cat_title': '$cat_title', 
-                                                'cat_type_id': 1, 
-                                                'cat_type': '$Category-type.cat_type'
-                                            }
-                                        }
-                                    ], 
-                                    'as': 'Category'
-                                }
-                            }, {
-                                '$unwind': '$Category'
-                            }, {
-                                '$project': {
-                                    'Product name': '$prod_name', 
-                                    'Category': '$Category.cat_title', 
-                                    'Category-type': '$Category.cat_type', 
-                                    'Product description': '$prod_desc', 
-                                    'Product price': '$prod_price', 
-                                    'Size': '$prod_qty.k', 
-                                    'Quantity': '$prod_qty.v'
-                                }
-                            }, {
-                                '$sort': {
-                                    'Category-type': -1, 
-                                    'Category': -1, 
-                                    'Product name': 1, 
-                                    'Size': 1
-                                }
-                            }, {
-                                '$addFields': {
-                                    'Sub total': {
-                                        '$multiply': [
-                                            '$Product price', '$Quantity'
-                                        ]
-                                    }
-                                }
-                            }
-                        ])
+                                                }, {
+                                                    '$unwind': '$prod_qty'
+                                                }, {
+                                                    '$lookup': {
+                                                        'from': 'Supplier', 
+                                                        'localField': 'supp_id', 
+                                                        'foreignField': '_id', 
+                                                        'as': 'Supplier'
+                                                    }
+                                                }, {
+                                                    '$unwind': '$Supplier'
+                                                }, {
+                                                    '$project': {
+                                                        'supp_id': '$Supplier._id', 
+                                                        'supp_name': '$Supplier.name', 
+                                                        'prod_id': '$prod_id', 
+                                                        'purch_price': '$purch_price', 
+                                                        'size': '$prod_qty.k', 
+                                                        'qty': '$prod_qty.v'
+                                                    }
+                                                }, {
+                                                    '$group': {
+                                                        '_id': {
+                                                            'supp_id': '$supp_id', 
+                                                            'product_id': '$prod_id', 
+                                                            'prod_size': '$size'
+                                                        }, 
+                                                        'supp_name': {
+                                                            '$first': '$supp_name'
+                                                        }, 
+                                                        'purch_price': {
+                                                            '$first': '$purch_price'
+                                                        }, 
+                                                        'Quantity': {
+                                                            '$sum': '$qty'
+                                                        }
+                                                    }
+                                                }, {
+                                                    '$project': {
+                                                        '_id': 1, 
+                                                        'prod_id': '$_id.product_id', 
+                                                        'prod_size': '$_id.prod_size', 
+                                                        'total_qty': '$Quantity', 
+                                                        'supp_name': '$supp_name', 
+                                                        'purch_price': '$purch_price', 
+                                                        'purch_price': '$purch_price'
+                                                    }
+                                                }, {
+                                                    '$lookup': {
+                                                        'from': 'Product', 
+                                                        'let': {
+                                                            'real_prod_id': '$prod_id'
+                                                        }, 
+                                                        'pipeline': [
+                                                            {
+                                                                '$match': {
+                                                                    '$expr': {
+                                                                        '$eq': [
+                                                                            '$_id', '$$real_prod_id'
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }, {
+                                                                '$lookup': {
+                                                                    'from': 'Category', 
+                                                                    'let': {
+                                                                        'real_cat_id': '$cat_id'
+                                                                    }, 
+                                                                    'pipeline': [
+                                                                        {
+                                                                            '$match': {
+                                                                                '$expr': {
+                                                                                    '$and': [
+                                                                                        {
+                                                                                            '$eq': [
+                                                                                                '$_id', '$$real_cat_id'
+                                                                                            ]
+                                                                                        }
+                                                                                    ]
+                                                                                }
+                                                                            }
+                                                                        }, {
+                                                                            '$lookup': {
+                                                                                'from': 'Category-type', 
+                                                                                'let': {
+                                                                                    'real_cat_type_id': '$cat_type_id'
+                                                                                }, 
+                                                                                'pipeline': [
+                                                                                    {
+                                                                                        '$match': {
+                                                                                            '$expr': {
+                                                                                                '$and': [
+                                                                                                    {
+                                                                                                        '$eq': [
+                                                                                                            '$_id', '$$real_cat_type_id'
+                                                                                                        ]
+                                                                                                    }
+                                                                                                ]
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                ], 
+                                                                                'as': 'Category-type'
+                                                                            }
+                                                                        }, {
+                                                                            '$unwind': '$Category-type'
+                                                                        }
+                                                                    ], 
+                                                                    'as': 'Category'
+                                                                }
+                                                            }, {
+                                                                '$unwind': '$Category'
+                                                            }, {
+                                                                '$project': {
+                                                                    '_id': 1, 
+                                                                    'prod_name': '$prod_name', 
+                                                                    'cat_id': '$Category._id', 
+                                                                    'cat_title': '$Category.cat_title', 
+                                                                    'cat_type_id': '$Category.Category-type._id', 
+                                                                    'cat_type': '$Category.Category-type.cat_type'
+                                                                }
+                                                            }
+                                                        ], 
+                                                        'as': 'Product'
+                                                    }
+                                                }, {
+                                                    '$unwind': '$Product'
+                                                }, {
+                                                    '$project': {
+                                                        '_id': 0, 
+                                                        'Supplier name': '$supp_name', 
+                                                        'Category-type': '$Product.cat_type', 
+                                                        'Category name': '$Product.cat_title', 
+                                                        'Product name': '$Product.prod_name', 
+                                                        'Size': '$prod_size', 
+                                                        'Quantity': '$total_qty', 
+                                                        'Purchase price': '$purch_price'
+                                                    }
+                                                }, {
+                                                    '$sort': {
+                                                        'Supplier name': 1, 
+                                                        'Category-type': -1, 
+                                                        'Category': -1, 
+                                                        'Product name': 1, 
+                                                        'Size': 1
+                                                    }
+                                                }, {
+                                                    '$addFields': {
+                                                        'Sub total': {
+                                                            '$multiply': [
+                                                                '$Purchase price', '$Quantity'
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ])
             
             data = list(data)
             # print(list(data))
@@ -4521,7 +4604,7 @@ def purchase_report(request):
                 
                 # preparing file response to send to the server
                 response = FileResponse(file)
-                file_name = f"stock_report_{str(datetime.date.today())}.xlsx"
+                file_name = f"purchase_report_{str(resp_data['from_date'].date())}_{str(resp_data['until_date'].date())}.xlsx"
                 response['Content-Type'] = 'application/vnd.ms-excel'
                 response['Access-Control-Expose-Headers'] = 'Content-Disposition'   #NOTE: this is needed to allow content-disposition to show on react's axios request without this it won't show up
                 response['Content-Disposition'] = f'attachment; filename="{file_name}"'
@@ -4530,6 +4613,7 @@ def purchase_report(request):
                 date.date()
                 pass
                 return response
+                # return JsonResponse(output_format(message='Success!', data=data))
         else:
             return JsonResponse(output_format(message='User not admin.'))
       
