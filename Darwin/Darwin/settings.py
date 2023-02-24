@@ -99,8 +99,8 @@ WSGI_APPLICATION = 'Darwin.wsgi.application'
 
 #mongo_auth db settings
 MANGO_JWT_SETTINGS = {
-    # "db_host": "mongodb://localhost:27017", # Use srv host if connecting with MongoDB Atlas Cluster
-    "db_host": "mongodb+srv://occupy-mars:1234567890@cluster0.xok8xgd.mongodb.net/?retryWrites=true&w=majority", # Use srv host if connecting with MongoDB Atlas Cluster
+    "db_host": "mongodb://localhost:27017", # Use srv host if connecting with MongoDB Atlas Cluster
+    # "db_host": "mongodb+srv://occupy-mars:1234567890@cluster0.xok8xgd.mongodb.net/?retryWrites=true&w=majority", # Use srv host if connecting with MongoDB Atlas Cluster
     # "db_port": "27017", # Don't include this field if connecting with MongoDB Atlas Cluster
     "db_name": "mystore",
     "db_user": "username",

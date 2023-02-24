@@ -45,6 +45,8 @@ class AuthenticateMiddleware:
                         'sales-report',
                         'supplier-report',
                         'stock-report',
+                        'admin-user-count',
+                        'admin-order-count',
                     ]
         # One-time configuration and initialization.
 
