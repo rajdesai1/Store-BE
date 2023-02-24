@@ -903,7 +903,6 @@ def admin_product(request, _id=None):
                                         '$unwind': '$Product'
                                     }, {
                                         '$match': {
-                                            'Product._id': 'ID-f8cfc994-fdf3-495b-85f6-4d5692accee9', 
                                             'Product.is_deleted': False, 
                                             'is_deleted': False
                                         }
@@ -1827,7 +1826,7 @@ def admin_purchase(request, _id=None):
                                         'date': '$Purchase.date', 
                                         'total_amount': '$Purchase.total_amount', 
                                         'Purchase-details': {
-                                            'prod_id': '$Product.prod_id', 
+                                            'prod_id': '$Product._id', 
                                             'cat_id': '$Product.cat_id', 
                                             'cat_title': '$Product.cat_title', 
                                             'cat_type_id': '$Product.cat_type_id', 
