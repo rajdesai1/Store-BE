@@ -1579,6 +1579,8 @@ def admin_purchase(request, _id=None):
                     {"$inc": prod_qty}
                 )
 
+                data['Purchase-details'][i].pop('cat_type_id')
+                data['Purchase-details'][i].pop('category_id')
             #inserting data
             try:
                 data['_id'] = create_unique_object_id()
@@ -1921,104 +1923,111 @@ def admin_purchase(request, _id=None):
                 if purchase is None:
                     return JsonResponse(output_format(message='Purchase not found.'))
                 try:
-                    response_data = json.loads(request.body)     #loading body string to json data
+                    data = json.loads(request.body)     #loading body string to json data
                 
-                    if response_data.get('date') is not None:
-                        response_data['date'] = datetime.datetime.strptime(response_data['date'], '%Y-%m-%dT%H:%M:%S.%fZ')       
+                    if data.get('date') is not None:
+                        data['date'] = datetime.datetime.strptime(data['date'], '%Y-%m-%dT%H:%M:%S.%fZ')       
                 except:
                     return JsonResponse(output_format(message='Wrong data format.'))
 
-                try:
-                    if data.get('supp_id') is not None:
-                        #checking whether supplier exists
-                        if database['Supplier'].find_one({'_id':response_data['supp_id'], "is_deleted": False}) is None:
-                            return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
-                    
-                    
-                    previous_purchase_details = purchase.get('Purchase-details')
-                    
+                # try:
+                if data.get('supp_id') is not None:
+                    #checking whether supplier exists
+                    if database['Supplier'].find_one({'_id':data['supp_id'], "is_deleted": False}) is None:
+                        return JsonResponse(output_format(message='Supplier doesn\'t exist.'))
+                
+                
+                previous_purchase_details = purchase.get('Purchase-details')
+                
 
-                    for i, purch in enumerate(data['Purchase-details']):
-                        
-                        #removing unnecessary data received from front
-                        data['Purchase-details'][i].pop('cat_type_id')
-                        data['Purchase-details'][i].pop('cat_id')
-                        data['Purchase-details'][i].pop('cat_title')
-                        data['Purchase-details'][i].pop('cat_type')
-                        
-                        #changing data to required format
-                        tmp = {item['size']: item['qty'] for item in purch['purch_qty']}
-                        data['Purchase-details'][i]['purch_qty'] = tmp
+                for i, purch in enumerate(data['Purchase-details']):
+                    
+                    #removing unnecessary data received from front
+                    data['Purchase-details'][i].pop('cat_type_id')
+                    data['Purchase-details'][i].pop('cat_id')
+                    data['Purchase-details'][i].pop('cat_title')
+                    data['Purchase-details'][i].pop('cat_type')
+                    data['Purchase-details'][i].pop('prod_name')
+                    
+                    #changing data to required format
+                    tmp = {item['size']: item['qty'] for item in purch['purch_qty']}
+                    data['Purchase-details'][i]['purch_qty'] = tmp
 
+                
+                received_purchase_details = data.get('Purchase-details')
+                
+                if previous_purchase_details and received_purchase_details:
                     
-                    received_purchase_details = data.get('Purchase-details')
+                    previous_prod_id = {prev_purchase['prod_id']: i for i, prev_purchase in enumerate(previous_purchase_details)}
                     
-                    if previous_purchase_details and received_purchase_details:
-                        
-                        previous_prod_id = {prev_purchase['prod_id']: i for i, prev_purchase in enumerate(previous_purchase_details)}
-                        
-                        for i, received_purchase in enumerate(received_purchase_details):
+                    for i, received_purchase in enumerate(received_purchase_details):
+
+
+                        ## checking if new pruchase already existing in previous purchase
+                        ## ADDING NEW PRODUCT IN PURCHASE AND PRODUCT                      
+                        if received_purchase['prod_id'] not in previous_prod_id:
                             
-                            
-                            ## checking if new pruchase already existing in previous purchase
-                            ## ADDING NEW PRODUCT IN PURCHASE AND PRODUCT                      
-                            if received_purchase['prod_id'] not in previous_prod_id:
+                            #checking whether product exists or not
+                                if database['Product'].find_one({'_id': received_purchase['prod_id']}) is None:
+                                    return JsonResponse(output_format(message='Product doesn\'t exist.'))
                                 
-                                #checking whether product exists or not
-                                    if database['Product'].find_one({'_id': received_purchase['prod_id']}) is None:
-                                        return JsonResponse(output_format(message='Product doesn\'t exist.'))
-                                    
-                                    # converting purchase details from received array to dictionary
-                                    tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
-                                    data['Purchase-details'][i]['purch_qty'] = tmp
+                                # converting purchase details from received array to dictionary
+                                # tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
+                                # data['Purchase-details'][i]['purch_qty'] = tmp
 
-                                    #adding purchased qty to the existing product
-                                    prod_qty = {}
-                                    for size, qty in received_purchase['purch_qty'].items():
-                                        prod_qty[f'prod_qty.{size}'] = qty
-                                    print(prod_qty)
-                                    database['Product'].update_one({"_id": product_details['prod_id']},
-                                        {"$inc": prod_qty})
+                                #adding purchased qty to the existing product
+                                # prod_qty = {}
+                                # for size, qty in received_purchase['purch_qty'].items():
+                                #     prod_qty[f'prod_qty.{size}'] = qty
+                                # print(prod_qty)
+                                database['Product'].update_one({"_id": received_purchase['prod_id']},
+                                    {"$inc": {"prod_qty." + size: qty for size, qty in received_purchase['purch_qty'].items()}})
+                        
+                        
+                        #product is ""maybe"" modified if modified  
+                        elif received_purchase['prod_id'] in previous_prod_id:
                             
+                            index = previous_prod_id.get(received_purchase['prod_id'])
                             
-                            #product is ""maybe"" modified if modified  
-                            elif received_purchase['prod_id'] in previous_prod_id:
-                                
-                                index = previous_prod_id.get(received_purchase['prod_id'])
-                                
-                                prev_purch_qty = previous_purchase_details[i]['purch_qty']
+                            prev_purch_qty = previous_purchase_details[i]['purch_qty']
 
-                                qty_diff = {}
-                                for size, qty in received_purchase['purch_qty'].items():
-                                    if size in prev_purch_qty:
-                                        diff = qty - prev_purch_qty[size]
-                                        if diff != 0:
-                                            qty_diff[size] = diff
-                                    else:
-                                        qty_diff[size] = qty
+                            qty_diff = {}
+                            for size, qty in received_purchase['purch_qty'].items():
+                                if size in prev_purch_qty:
+                                    diff = qty - prev_purch_qty[size]
+                                    if diff != 0:
+                                        qty_diff[size] = diff
+                                else:
+                                    qty_diff[size] = qty
+                            
+                            for size, qty in prev_purch_qty.items():
+                                if size not in received_purchase['purch_qty']:
+                                    if qty != 0:
+                                        qty_diff[size] = -qty
 
-                                ## that ""maybe"" handled here
-                                if qty_diff:
-                                    database['Product'].update_one({"_id": received_purchase['prod_id']},
-                                                {"$inc": {"prod_qty." + size: qty for size, qty in qty_diff.items()}})
+                            ## that ""maybe"" handled here
+                            if qty_diff:
+                                database['Product'].update_one({"_id": received_purchase['prod_id']},
+                                            {"$inc": {"prod_qty." + size: qty for size, qty in qty_diff.items()}})
+                    
+                    
                         
+                            # modified or not 
+                            # so need to find the difference if it is modified BANG!!
+                    
+                    received_prod_id = {rec_purchase['prod_id']: i for i, rec_purchase in enumerate(received_purchase_details)}
+                    removed_products = [purch for purch in previous_purchase_details if purch['prod_id'] not in received_prod_id]
+                    
+                    for removed_prod in removed_products:
+                        removed_qty = {"prod_qty." + size: -qty for size, qty in removed_prod['purch_qty'].items()}
                         
-                            
-                                # modified or not 
-                                # so need to find the difference if it is modified BANG!!
-                        
-                        received_prod_id = {rec_purchase['prod_id']: i for i, rec_purchase in enumerate(received_purchase_details)}
-                        removed_products = [purch for purchase in previous_purchase_details if purch['prod_id'] not in received_prod_id]
-                        
-                        for removed_prod in removed_products:
-                            removed_qty = {"prod_qty." + size: -qty for size, qty in removed_prod['prod_qty'].items()}
-                            
-                            database['Product'].update_one({"_id": removed_prod['prod_id']},
-                                                {"$inc": removed_qty})
-                 
-                    return JsonResponse(output_format(message='Success!'))
-                except:
-                    return JsonResponse(output_format(message='Update failed.'))
+                        database['Product'].update_one({"_id": removed_prod['prod_id']},
+                                            {"$inc": removed_qty})
+                
+                    database['Purchase'].update_one({'_id': _id}, {'$set': data})
+                return JsonResponse(output_format(message='Success!'))
+                # except:
+                    # return JsonResponse(output_format(message='Update failed.'))
                             
             # if True:            
                             
@@ -2077,6 +2086,65 @@ def admin_purchase(request, _id=None):
                 
         else:
             return JsonResponse(output_format(message='User not admin.'))            
+
+                            
+            # if True:            
+                            
+            #                 for previous_purchase in previous_purchase_details:
+                                
+                                    
+            #                         #checking whether product exists or not
+            #                         if database['Product'].find_one({'_id': product_details['prod_id']}) is None:
+            #                             return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                                    
+            #                         # converting purchase details from received array to dictionary
+            #                         tmp = {item['size']: item['qty'] for item in product_details['purch_qty']}
+            #                         data['Purchase-details'][i]['purch_qty'] = tmp
+
+            #                         #adding purchased qty to the existing product
+            #                         prod_qty = {}
+            #                         for size, qty in tmp.items():
+            #                             prod_qty[f'prod_qty.{size}'] = qty
+            #                         print(prod_qty)
+            #                         database['Product'].update_one({"_id": product_details['prod_id']},
+            #                             {"$inc": prod_qty}
+            #                         )
+                            
+            #                 # [previous_purchase for previous_purchase in previous_purchase_details  if received_purchase['prod_id'] != previous_purchase['prod_id'], ]
+            #             ## if received new product
+                        
+##################################
+                    
+            #         #adding purchased qty to the existing product
+            #         prod_qty = {}
+                    
+            #         for purchased_product in data['Purchase-details']:
+                        
+                        
+            #             for prod in purchased_product.items():
+                            
+            #                 prod = database['Product'].find_one({'_id': prod['prod_id'], "is_deleted": False})
+            #                 if prod is None:
+            #                     return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                            
+
+            #             product = database['Product'].find_one(
+            #                 filter={'_id': purchased_product['prod_id']})     #fetching product from product table
+
+            #             #checking whether product exists
+            #             if product is None:
+            #                 return JsonResponse(output_format(message='Product doesn\'t exist.'))
+                        
+                        
+            #                 # for purchase_product  in purchase['Purchase-details']:
+            #                 #     prod_qty[f'prod_qty.{size}'] = qty
+            #                 # print(prod_qty)
+            #                 # database['Product'].update_one({"_id": product_details['prod_id']},
+            #                 # {"$inc": prod_qty}
+            #                 # )
+                
+        # else:
+        #     return JsonResponse(output_format(message='User not admin.'))            
                 
 
 
@@ -4322,7 +4390,149 @@ def stock_report(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
         
-        
+@api_view(['POST'])
+def purchase_report(request):
+
+    if request.method == 'POST':
+        #fetching admin details
+        user = database['User'].find_one(filter={'_id':request.id, 'role':request.role})
+        #checking if user is customer
+        if user['role'] == 'admin' and user['_id'] == request.id:
+            data = database['Product'].aggregate([
+                            {
+                                '$project': {
+                                    'prod_name': 1, 
+                                    'prod_desc': 1, 
+                                    'prod_price': 1, 
+                                    'cat_id': 1, 
+                                    'prod_qty': {
+                                        '$objectToArray': '$prod_qty'
+                                    }
+                                }
+                            }, {
+                                '$unwind': '$prod_qty'
+                            }, {
+                                '$match': {"prod_qty.v": { "$ne":  0}}
+                            }, {
+                                '$lookup': {
+                                    'from': 'Category', 
+                                    'let': {
+                                        'real_cat_id': '$cat_id'
+                                    }, 
+                                    'pipeline': [
+                                        {
+                                            '$match': {
+                                                '$expr': {
+                                                    '$and': [
+                                                        {
+                                                            '$eq': [
+                                                                '$_id', '$$real_cat_id'
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }, {
+                                            '$lookup': {
+                                                'from': 'Category-type', 
+                                                'let': {
+                                                    'real_cat_type_id': '$cat_type_id'
+                                                }, 
+                                                'pipeline': [
+                                                    {
+                                                        '$match': {
+                                                            '$expr': {
+                                                                '$and': [
+                                                                    {
+                                                                        '$eq': [
+                                                                            '$_id', '$$real_cat_type_id'
+                                                                        ]
+                                                                    }
+                                                                ]
+                                                            }
+                                                        }
+                                                    }
+                                                ], 
+                                                'as': 'Category-type'
+                                            }
+                                        }, {
+                                            '$unwind': '$Category-type'
+                                        }, {
+                                            '$project': {
+                                                '_id': 1, 
+                                                'cat_title': '$cat_title', 
+                                                'cat_type_id': 1, 
+                                                'cat_type': '$Category-type.cat_type'
+                                            }
+                                        }
+                                    ], 
+                                    'as': 'Category'
+                                }
+                            }, {
+                                '$unwind': '$Category'
+                            }, {
+                                '$project': {
+                                    'Product name': '$prod_name', 
+                                    'Category': '$Category.cat_title', 
+                                    'Category-type': '$Category.cat_type', 
+                                    'Product description': '$prod_desc', 
+                                    'Product price': '$prod_price', 
+                                    'Size': '$prod_qty.k', 
+                                    'Quantity': '$prod_qty.v'
+                                }
+                            }, {
+                                '$sort': {
+                                    'Category-type': -1, 
+                                    'Category': -1, 
+                                    'Product name': 1, 
+                                    'Size': 1
+                                }
+                            }, {
+                                '$addFields': {
+                                    'Sub total': {
+                                        '$multiply': [
+                                            '$Product price', '$Quantity'
+                                        ]
+                                    }
+                                }
+                            }
+                        ])
+            
+            data = list(data)
+            # print(list(data))
+            if not data:
+                return JsonResponse(output_format(message='Records not found.'))
+            else:
+                # print(list(data)[0])
+                df = pd.DataFrame(data)
+                total = pd.DataFrame([{
+                            "Product name": "Total",
+                            # "Product size": ,
+                            # "Total quantity": ,
+                            "Sub total": sum(df['Sub total'])
+                        }])
+                new = pd.concat([df,total], ignore_index=True)
+                new.index+=1
+
+                file = open(f'{MEDIA_ROOT}/sdf.xlsx', 'wb+')
+                new.to_excel(file, index_label="No.")
+                file.seek(0)
+                # print(file.read())
+                
+                # preparing file response to send to the server
+                response = FileResponse(file)
+                file_name = f"stock_report_{str(datetime.date.today())}.xlsx"
+                response['Content-Type'] = 'application/vnd.ms-excel'
+                response['Access-Control-Expose-Headers'] = 'Content-Disposition'   #NOTE: this is needed to allow content-disposition to show on react's axios request without this it won't show up
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                print(response)
+                date = datetime.datetime.now()
+                date.date()
+                pass
+                return response
+        else:
+            return JsonResponse(output_format(message='User not admin.'))
+      
 @api_view(['GET'])
 def admin_user_count(request):
     
