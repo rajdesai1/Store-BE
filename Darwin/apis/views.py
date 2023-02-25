@@ -2583,6 +2583,7 @@ def customer_order(request):
                     response_data['name'] = user['name']
                     response_data['order_amount'] = (data['total_amount']-data['discount'])
                     response_data['currency'] = 'INR'
+                    response_data['mobile_no'] = user['mobile_no']
                     response_data['merchantId'] = base64decode(RAZORPAY_CONFIGS['RAZOR_KEY_ID'])
                     response_data['order_id'] = order_id
                     
@@ -4412,13 +4413,14 @@ def purchase_report(request):
                                                     '$match': {
                                                         'date': { '$gte': resp_data['from_date'], '$lt': resp_data['until_date'] }
                                                     }
-                                                }, 
+                                                },
                                                 {
                                                     '$unwind': '$Purchase-details'
                                                 }, {
                                                     '$project': {
                                                         'supp_id': '$supp_id', 
                                                         'prod_id': '$Purchase-details.prod_id', 
+                                                        'date': '$date', 
                                                         'purch_price': '$Purchase-details.purch_price', 
                                                         'prod_qty': {
                                                             '$objectToArray': '$Purchase-details.purch_qty'
@@ -4435,42 +4437,6 @@ def purchase_report(request):
                                                     }
                                                 }, {
                                                     '$unwind': '$Supplier'
-                                                }, {
-                                                    '$project': {
-                                                        'supp_id': '$Supplier._id', 
-                                                        'supp_name': '$Supplier.name', 
-                                                        'prod_id': '$prod_id', 
-                                                        'purch_price': '$purch_price', 
-                                                        'size': '$prod_qty.k', 
-                                                        'qty': '$prod_qty.v'
-                                                    }
-                                                }, {
-                                                    '$group': {
-                                                        '_id': {
-                                                            'supp_id': '$supp_id', 
-                                                            'product_id': '$prod_id', 
-                                                            'prod_size': '$size'
-                                                        }, 
-                                                        'supp_name': {
-                                                            '$first': '$supp_name'
-                                                        }, 
-                                                        'purch_price': {
-                                                            '$first': '$purch_price'
-                                                        }, 
-                                                        'Quantity': {
-                                                            '$sum': '$qty'
-                                                        }
-                                                    }
-                                                }, {
-                                                    '$project': {
-                                                        '_id': 1, 
-                                                        'prod_id': '$_id.product_id', 
-                                                        'prod_size': '$_id.prod_size', 
-                                                        'total_qty': '$Quantity', 
-                                                        'supp_name': '$supp_name', 
-                                                        'purch_price': '$purch_price', 
-                                                        'purch_price': '$purch_price'
-                                                    }
                                                 }, {
                                                     '$lookup': {
                                                         'from': 'Product', 
@@ -4554,17 +4520,23 @@ def purchase_report(request):
                                                 }, {
                                                     '$project': {
                                                         '_id': 0, 
-                                                        'Supplier name': '$supp_name', 
-                                                        'Category-type': '$Product.cat_type', 
-                                                        'Category name': '$Product.cat_title', 
+                                                        'Purchase date': {
+                                                            '$dateToString': {
+                                                                'date': '$date', 
+                                                                'format': '%Y-%m-%d'
+                                                            }
+                                                        }, 
                                                         'Product name': '$Product.prod_name', 
-                                                        'Size': '$prod_size', 
-                                                        'Quantity': '$total_qty', 
+                                                        'Supplier name': '$Supplier.name', 
+                                                        'Category': '$Product.cat_title', 
+                                                        'Category-type': '$Product.cat_type', 
+                                                        'Size': '$prod_qty.k', 
+                                                        'Quantity': '$prod_qty.v', 
                                                         'Purchase price': '$purch_price'
                                                     }
                                                 }, {
                                                     '$sort': {
-                                                        'Supplier name': 1, 
+                                                        'Purchase date': 1, 
                                                         'Category-type': -1, 
                                                         'Category': -1, 
                                                         'Product name': 1, 
@@ -4578,8 +4550,7 @@ def purchase_report(request):
                                                             ]
                                                         }
                                                     }
-                                                }
-                                            ])
+                                                }])
             
             data = list(data)
             # print(list(data))
