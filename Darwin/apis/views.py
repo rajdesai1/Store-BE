@@ -3286,41 +3286,149 @@ def customer_product(request, _id=None):
                 # data = database['Product'].find_one(filter={"_id": _id,'is_deleted': False, 'active': True}, 
                 #                                 projection={'is_deleted':0, 'active':0})
                 data = database["Product"].aggregate([
-                            {
-                                '$match': {"_id": _id,'is_deleted': False, 'active': True}
-                            },
-                            {
-                                '$lookup': {
-                                'from': "Rating",
-                                'let': { 'prod_id': "$_id" },
-                                'pipeline': [
-                                    { '$match': { '$expr': { '$eq': ["$prod_id", "$$prod_id"] } } },
-                                    { '$group': { '_id': "$prod_id", 'rating': { '$avg': "$rating" }, 'user_count': { '$sum': 1 } } },
-                                    { '$project': { '_id': 0 } }
-                                ],
-                                'as': "Rating"
-                                }
-                            },
-                            {
-                                '$project': {
-                                'rating': { '$ifNull': [{ '$arrayElemAt': ["$Rating.rating", 0] }, 0] },
-                                'user_count': { '$ifNull': [{ '$arrayElemAt': ["$Rating.user_count", 0] }, 0] },
-                                'prod_name': 1,
-                                'cat_id': 1,
-                                'prod_price': 1,
-                                'prod_desc':1,
-                                'prod_image': 1,
-                                'created_at': 1,
-                                'prod_qty': {'$arrayToObject': {
-                                                '$filter': {
-                                                'input': { '$objectToArray': "$prod_qty" },
-                                                'as': "item",
-                                                'cond': { '$ne': [ "$$item.v", 0 ] }
+                                                {
+                                                    '$match': {
+                                                        '_id': _id, 
+                                                        'is_deleted': False, 
+                                                        'active': True
+                                                    }
+                                                }, {
+                                                    '$lookup': {
+                                                        'from': 'Category', 
+                                                        'let': {
+                                                            'real_cat_id': '$cat_id'
+                                                        }, 
+                                                        'pipeline': [
+                                                            {
+                                                                '$match': {
+                                                                    '$expr': {
+                                                                        '$and': [
+                                                                            {
+                                                                                '$eq': [
+                                                                                    '$_id', '$$real_cat_id'
+                                                                                ]
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }, {
+                                                                '$lookup': {
+                                                                    'from': 'Category-type', 
+                                                                    'let': {
+                                                                        'real_cat_type_id': '$cat_type_id'
+                                                                    }, 
+                                                                    'pipeline': [
+                                                                        {
+                                                                            '$match': {
+                                                                                '$expr': {
+                                                                                    '$and': [
+                                                                                        {
+                                                                                            '$eq': [
+                                                                                                '$_id', '$$real_cat_type_id'
+                                                                                            ]
+                                                                                        }
+                                                                                    ]
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    ], 
+                                                                    'as': 'Category-type'
+                                                                }
+                                                            }, {
+                                                                '$unwind': '$Category-type'
+                                                            }, {
+                                                                '$project': {
+                                                                    'cat_id': '$_id', 
+                                                                    'cat_type': '$Category-type.cat_type', 
+                                                                    'cat_title': '$cat_title', 
+                                                                    'cat_type_id': '$cat_type_id'
+                                                                }
+                                                            }
+                                                        ], 
+                                                        'as': 'Category'
+                                                    }
+                                                }, {
+                                                    '$unwind': '$Category'
+                                                }, {
+                                                    '$lookup': {
+                                                        'from': 'Rating', 
+                                                        'let': {
+                                                            'prod_id': '$_id'
+                                                        }, 
+                                                        'pipeline': [
+                                                            {
+                                                                '$match': {
+                                                                    '$expr': {
+                                                                        '$eq': [
+                                                                            '$prod_id', '$$prod_id'
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }, {
+                                                                '$group': {
+                                                                    '_id': '$prod_id', 
+                                                                    'rating': {
+                                                                        '$avg': '$rating'
+                                                                    }, 
+                                                                    'user_count': {
+                                                                        '$sum': 1
+                                                                    }
+                                                                }
+                                                            }, {
+                                                                '$project': {
+                                                                    '_id': 0
+                                                                }
+                                                            }
+                                                        ], 
+                                                        'as': 'Rating'
+                                                    }
+                                                }, {
+                                                    '$project': {
+                                                        'rating': {
+                                                            '$ifNull': [
+                                                                {
+                                                                    '$arrayElemAt': [
+                                                                        '$Rating.rating', 0
+                                                                    ]
+                                                                }, 0
+                                                            ]
+                                                        }, 
+                                                        'user_count': {
+                                                            '$ifNull': [
+                                                                {
+                                                                    '$arrayElemAt': [
+                                                                        '$Rating.user_count', 0
+                                                                    ]
+                                                                }, 0
+                                                            ]
+                                                        }, 
+                                                        'prod_name': 1, 
+                                                        'cat_title': '$Category.cat_title', 
+                                                        'cat_type_id': '$Category.cat_type_id', 
+                                                        'cat_id': 1, 
+                                                        'cat_type': '$Category.cat_type', 
+                                                        'prod_price': 1, 
+                                                        'prod_desc': 1, 
+                                                        'prod_image': 1, 
+                                                        'created_at': 1, 
+                                                        'prod_qty': {
+                                                            '$arrayToObject': {
+                                                                '$filter': {
+                                                                    'input': {
+                                                                        '$objectToArray': '$prod_qty'
+                                                                    }, 
+                                                                    'as': 'item', 
+                                                                    'cond': {
+                                                                        '$ne': [
+                                                                            '$$item.v', 0
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            }}
-                                }
-                            }
-                            ])
+                                            ])
 
 
                 if data:
