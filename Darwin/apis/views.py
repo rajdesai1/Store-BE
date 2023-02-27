@@ -1887,7 +1887,7 @@ def admin_purchase(request, _id=None):
                                     }
                                 }, {
                                     '$sort': {
-                                        'date': -1
+                                        'date':  -1
                                     }
                                 }
                             ]
@@ -3149,7 +3149,7 @@ def request_password_reset(request):
 
             token = jwt.encode({'id': {'id':user['_id'],'role':user['role']},
                         'exp': datetime.datetime.now() + datetime.timedelta(
-                            days=1)},
+                            minutes=5)},
                         jwt_secret, algorithm='HS256')
             encoded_token = base64.b64encode(token.encode('ascii'))
             # encoded_token = base64.b64encode(token)
@@ -4528,7 +4528,7 @@ def purchase_report(request):
                                                     '$project': {
                                                         'supp_id': '$supp_id', 
                                                         'prod_id': '$Purchase-details.prod_id', 
-                                                        'date': '$date', 
+                                                        'date': '$date',
                                                         'purch_price': '$Purchase-details.purch_price', 
                                                         'prod_qty': {
                                                             '$objectToArray': '$Purchase-details.purch_qty'

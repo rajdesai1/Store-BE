@@ -135,8 +135,8 @@ FIREBASECONFIG = {
 }
 
 MAIL_SERVICE_CONFIGS = {
-    'sender' : 'gurukrupafashion90@gmail.com',
-    'password': 'odniwlwizogvkgch',
+    'sender' : 'spiderman03847@gmail.com',
+    'password': 'mbmfjidbpxywcxum',
     'smtp_server' : 'smtp.gmail.com',
     'smtp_port': 465
 }
