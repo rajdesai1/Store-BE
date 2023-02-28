@@ -48,6 +48,7 @@ class AuthenticateMiddleware:
                         'admin-user-count',
                         'admin-order-count',
                         'purchase-report',
+                        'measure'
                     ]
         # One-time configuration and initialization.
 
@@ -94,7 +95,10 @@ class AuthenticateMiddleware:
                         return JsonResponse(output_format(message='User not found with received token.'))
                     # request['email'] = result['id']
             else:
-                return JsonResponse(output_format(message="Token Expired!"), status = 200)
+                if view_name == 'reset-password':
+                    return JsonResponse(output_format(message='Password reset link expired.'))
+                else:
+                    return JsonResponse(output_format(message="Token Expired!"))
 
     
         response = self.get_response(request)

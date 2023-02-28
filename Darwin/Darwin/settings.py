@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-003oo_(urn&%(5*-1i**_mlipq5se_p7uy7x7$8uaxapz1*s#o
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok.io', '*']
 
 
 # Application definition
@@ -46,10 +46,12 @@ INSTALLED_APPS = [
 ]
 
 #cors config
-CORS_ORIGIN_ALLOW_ALL = False
-CORS_ORIGIN_WHITELIST = (
-  'http://localhost:3000',
-)
+CORS_ORIGIN_ALLOW_ALL = True
+# CORS_ORIGIN_WHITELIST = (
+#   'http://localhost',
+#   'http://localhost:3000',
+#   'http://192.168.1.4:3000',
+# )
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -64,6 +66,8 @@ MIDDLEWARE = [
     #user defined middleware
     'apis.middleware.AuthenticateMiddleware'
 ]
+
+REST_FRAMEWORK = {}
 
 ROOT_URLCONF = 'Darwin.urls'
 

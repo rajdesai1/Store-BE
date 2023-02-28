@@ -19,6 +19,8 @@ from .db import database, jwt_secret
 from Darwin.settings import FIREBASECONFIG, RAZORPAY_CONFIGS, MEDIA_ROOT
 from .utils import (pwd_context, output_format, create_unique_object_id,
                     send_email, convert_structure, base64decode, random_str)
+from .body_measurement.humanet import demo
+from .body_measurement import unet_segmentation 
 
 # Create your views here.
 
@@ -180,58 +182,111 @@ def change_password(request):
 def navbar_shop_category(request):
 
     
-        cats = database["Category-type"].aggregate(
-                    [
-                        {
-                           
-                            "$match": {
-                            "active": True,
-                            "is_deleted": False
-                            } 
-                        },
-                        {
-                            "$lookup": {
-                            "from": "Category",
-                            "let": { "real_cat_type_id": "$_id" },
-                            "pipeline": [
-                                {
-                                "$match": {
-                                    "$expr": {
-                                    "$and": [
-                                        {
-                                        "$eq": [
-                                            "$cat_type_id",
-                                            "$$real_cat_type_id",
-                                        ],
-                                        },
-                                        { "$eq": ["$active", True] },
-                                        { "$eq": ["$is_deleted", False] },
-                                    ],
-                                    },
-                                },
-                                },
-                                {
-                                "$project": {
-                                    "_id": 1,
-                                    "cat_title": 1,
-                                },
-                                },
-                            ],
-                            "as": "Category",
-                            },
-                        },
-                        {
-                            "$project": {
-                            "_id": 1,
-                            "cat_type":1,
-                            "Category":1
-                            }
-                        }
-                    ])
+        cats = database["Category-type"].aggregate([
+                                    {
+                                        '$match': {
+                                            'active': True, 
+                                            'is_deleted': False
+                                        }
+                                    }, {
+                                        '$lookup': {
+                                            'from': 'Category', 
+                                            'let': {
+                                                'real_cat_type_id': '$_id'
+                                            }, 
+                                            'pipeline': [
+                                                {
+                                                    '$match': {
+                                                        '$expr': {
+                                                            '$and': [
+                                                                {
+                                                                    '$eq': [
+                                                                        '$cat_type_id', '$$real_cat_type_id'
+                                                                    ]
+                                                                }, {
+                                                                    '$eq': [
+                                                                        '$active', True
+                                                                    ]
+                                                                }, {
+                                                                    '$eq': [
+                                                                        '$is_deleted', False
+                                                                    ]
+                                                                }
+                                                            ]
+                                                        }
+                                                    }
+                                                }, {
+                                                    '$project': {
+                                                        '_id': 1, 
+                                                        'cat_title': 1
+                                                    }
+                                                }
+                                            ], 
+                                            'as': 'Category'
+                                        }
+                                    }, {
+                                        '$project': {
+                                            '_id': 1, 
+                                            'cat_type': 1, 
+                                            'Category': 1
+                                        }
+                                    }, {
+                                        '$unwind': '$Category'
+                                    }, {
+                                        '$addFields': {
+                                            'Category.cat_title_len': {
+                                                '$strLenCP': '$Category.cat_title'
+                                            }
+                                        }
+                                    }, {
+                                        '$sort': {
+                                            'Category.cat_title_len': 1
+                                        }
+                                    }, {
+                                        '$group': {
+                                            '_id': '$_id', 
+                                            'cat_type': {
+                                                '$first': '$cat_type'
+                                            }, 
+                                            'Category': {
+                                                '$push': '$Category'
+                                            }, 
+                                            'stringLength': {
+                                                '$first': '$stringLength'
+                                            }
+                                        }
+                                    }, {
+                                        '$addFields': {
+                                            'stringLength': {
+                                                '$strLenCP': '$cat_type'
+                                            }
+                                        }
+                                    }, {
+                                        '$sort': {
+                                            'stringLength': 1
+                                        }
+                                    }, {
+                                        '$project': {
+                                            '_id': 1, 
+                                            'cat_type': 1, 
+                                            'Category': {
+                                                '$map': {
+                                                    'input': '$Category', 
+                                                    'as': 'cat', 
+                                                    'in': {
+                                                        '_id': '$$cat._id', 
+                                                        'cat_title': '$$cat.cat_title'
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                ])
         out = [i for i in cats]
+        
         print(out)
         print('s')
-        return JsonResponse(output_format(data=out))
+        return JsonResponse(output_format(message='Success!', data=out))
 
 
 @api_view(['GET', 'POST', 'DELETE', 'PATCH'])
@@ -3137,7 +3192,7 @@ def request_password_reset(request):
         
         data = request.data
         
-        email = data.get('email')
+        email = data.get('email').lower()
         if email is not None:
 
             #fetching user details
@@ -3159,7 +3214,7 @@ def request_password_reset(request):
             try:
                 reset_url = f"localhost:3000/resetpassword/{encoded_token.decode()}/"
                 body = f'''<body style="font-family:system-ui;font-size:15px;"><h2 style="color: black;">Trouble signing in?</h2><p style="color: black;">Hey, Resetting your password is easy.</p><p style="color: black;">Copy & paste this link into your browser and follow the instructions. We'll have you up and
-                running in no time.</p><p style="color:darkblue;word-wrap:break-word;text-decoration:underline;">{reset_url}</p><p style="color: black;">If you did not make this request then please ignore this email.</p></body>
+                running in no time. Please note that this reset link is only vaild for 5 mins.</p><p style="color:darkblue;word-wrap:break-word;text-decoration:underline;">{reset_url}</p><p style="color: black;">If you did not make this request then please ignore this email.</p></body>
                     '''
                 subject = 'Reset your password'
                 recipients=[user['email']]
@@ -3532,6 +3587,171 @@ def suggested_product(request, cat_id=None):
                 except:
                     return JsonResponse(output_format(message='Products not fetched.'))
 
+@api_view(['GET'])
+def homepage_product(request):
+    if request.method == 'GET':
+        try:
+            data = database['Category-type'].aggregate([[
+                                                    {
+                                                        '$lookup': {
+                                                            'from': 'Category', 
+                                                            'localField': '_id', 
+                                                            'foreignField': 'cat_type_id', 
+                                                            'as': 'Category'
+                                                        }
+                                                    }, {
+                                                        '$unwind': '$Category'
+                                                    }, {
+                                                        '$lookup': {
+                                                            'from': 'Product', 
+                                                            'let': {
+                                                                'prod_ids': '$Category._id'
+                                                            }, 
+                                                            'pipeline': [
+                                                                {
+                                                                    '$match': {
+                                                                        '$expr': {
+                                                                            '$eq': [
+                                                                                '$cat_id', '$$prod_ids'
+                                                                            ]
+                                                                        }
+                                                                    }
+                                                                }, {
+                                                                    '$sample': {
+                                                                        'size': 100
+                                                                    }
+                                                                }, {
+                                                                    '$sort': {
+                                                                        'prod_id': 1
+                                                                    }
+                                                                }
+                                                            ], 
+                                                            'as': 'Product'
+                                                        }
+                                                    }, {
+                                                        '$unwind': '$Product'
+                                                    }, {
+                                                        '$match': {
+                                                            'Category.active': True, 
+                                                            'Product.active': True, 
+                                                            'active': True, 
+                                                            'Category.is_deleted': False, 
+                                                            'Product.is_deleted': False, 
+                                                            'is_deleted': False
+                                                        }
+                                                    }, {
+                                                        '$lookup': {
+                                                            'from': 'Rating', 
+                                                            'let': {
+                                                                'prod_id': '$Product._id'
+                                                            }, 
+                                                            'pipeline': [
+                                                                {
+                                                                    '$match': {
+                                                                        '$expr': {
+                                                                            '$eq': [
+                                                                                '$prod_id', '$$prod_id'
+                                                                            ]
+                                                                        }
+                                                                    }
+                                                                }, {
+                                                                    '$group': {
+                                                                        '_id': '$prod_id', 
+                                                                        'rating': {
+                                                                            '$avg': '$rating'
+                                                                        }, 
+                                                                        'user_count': {
+                                                                            '$sum': 1
+                                                                        }
+                                                                    }
+                                                                }, {
+                                                                    '$project': {
+                                                                        '_id': 0
+                                                                    }
+                                                                }
+                                                            ], 
+                                                            'as': 'Rating'
+                                                        }
+                                                    }, {
+                                                        '$project': {
+                                                            'rating': {
+                                                                '$ifNull': [
+                                                                    {
+                                                                        '$arrayElemAt': [
+                                                                            '$Rating.rating', 0
+                                                                        ]
+                                                                    }, None
+                                                                ]
+                                                            }, 
+                                                            'user_count': {
+                                                                '$ifNull': [
+                                                                    {
+                                                                        '$arrayElemAt': [
+                                                                            '$Rating.user_count', 0
+                                                                        ]
+                                                                    }, 0
+                                                                ]
+                                                            }, 
+                                                            '_id': '$Product._id', 
+                                                            'prod_name': '$Product.prod_name', 
+                                                            'prod_desc': '$Product.prod_desc', 
+                                                            'prod_image': {
+                                                                '$arrayElemAt': [
+                                                                    '$Product.prod_image', 0
+                                                                ]
+                                                            }, 
+                                                            'prod_price': '$Product.prod_price', 
+                                                            'cat_id': '$Product.cat_id', 
+                                                            'cat_title': '$Category.cat_title', 
+                                                            'cat_type_id': '$Category.cat_type_id', 
+                                                            'cat_type': '$cat_type'
+                                                        }
+                                                    }, {
+                                                        '$group': {
+                                                            '_id': '$cat_type_id', 
+                                                            'cat_type': {
+                                                                '$first': '$cat_type'
+                                                            }, 
+                                                            'Product': {
+                                                                '$push': {
+                                                                    '_id': '$_id', 
+                                                                    'prod_name': '$prod_name', 
+                                                                    'prod_desc': '$prod_desc', 
+                                                                    'prod_image': '$prod_image', 
+                                                                    'prod_price': '$prod_price', 
+                                                                    'cat_id': '$cat_id', 
+                                                                    'cat_title': '$cat_title', 
+                                                                    'cat_type_id': '$cat_type_id', 
+                                                                    'cat_type': '$cat_type'
+                                                                }
+                                                            }
+                                                        }
+                                                    }, {
+                                                        '$project': {
+                                                            '_id': 1, 
+                                                            'cat_type': 1, 
+                                                            'Product': {
+                                                                '$slice': [
+                                                                    '$Product', 5
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    {
+                                                        '$sort': {
+                                                        'cat_type': -1
+                                                        }
+                                                    }
+                                                ]])
+            
+            data = list(data)
+            if data:
+            # print(data)
+                return JsonResponse(output_format(message='Success!', data=data))
+            else:
+                raise Exception
+        except:
+            return JsonResponse(output_format(message="Homepage product not fetched."))
 @api_view(['POST', 'GET', 'PATCH', 'DELETE'])
 def cart(request):
     if request.method == 'POST':
@@ -4498,6 +4718,7 @@ def stock_report(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
         
+
 @api_view(['POST'])
 def purchase_report(request):
 
@@ -4763,6 +4984,87 @@ def admin_order_count(request):
         else:
             return JsonResponse(output_format(message='User not admin.'))
 
+
+
+@api_view(['POST'])
+def measure(request):
+    
+    if request.method == 'POST':
+        user = database['User'].find_one(filter={'_id':request.id})
+
+        #checking if user is customer
+        if user['role'] == 'customer' and user['_id'] == request.id:
+            
+            params = {}
+            
+            for param in ('gender', 'weight', 'height'):
+                
+                if request.POST[param] is None:
+                    params[param] = request.POST[param]
+                else:
+                    return JsonResponse(output_format(message='Wrong data format.'))
+                
+            if len(request.FILES) < 1:
+                    return JsonResponse(output_format(message='Images not received.'))
+            else:
+                    # taking two images and generating mask for them
+                    mask = []
+                    for i, file in enumerate(request.FILES.values()):
+                        filename, fileextension = os.path.splitext(file.name)
+                        
+                        mask.append(unet_segmentation.img_segmenation(image=file))
+
+                    if len(mask) == 2:
+                        measurements, mesh_path = demo.main(front=mask[0],
+                                  side=mask[1],
+                                  gender=params['gender'],
+                                  height=params['height'],
+                                  weight=params['weight']
+                                )
+                        
+                        #for image 
+                        if measurements and mesh_path:
+                            
+                            # preparing data to insert into db
+                            data = {}
+                            _id = create_unique_object_id
+                            data['_id'] = _id
+                            data['user_id'] = user['_id']
+                            data['timestemp'] = datetime.datetime.now()
+                            data['gender'] = params['gender']
+                            data['wieght'] = params['weight']
+                            data['height'] = params['height']
+                            data['results'] = measurements
+                            data['body_imgs'] = [
+                                {
+                                    'img_type': 'front',
+                                    'img_arr': mask[0]
+                                },
+                                {
+                                    'img_type': 'side',
+                                    'img_arr': mask[1]
+                                },
+                            ]
+                            
+                            database['Measurement'].insert_one(data)
+                            response_data = {}
+                            #connecting to the firebase
+                            firebase = pyrebase.initialize_app(FIREBASECONFIG)
+                            storage = firebase.storage()
+                            
+                            storage.child(f'/body_models/{_id}').put(f'{mesh_path}')
+                            # default_storage.delete()        #deleting from local storage after uploading to the cloud
+                            image_url = storage.child(f'body_models/{mesh_path.split("/")[-1]}').get_url(token=None)
+                            response_data['measurement_results'] = measurements
+                            response_data['_id'] = _id
+                            response_data['model_url'] = image_url
+                            
+                            return JsonResponse(output_format(message='Success!', data=response_data))
+                    else:
+                        return JsonResponse(output_format(message='Something went wrong creating mask images.'))
+                        
+                        
+                        
 # @api_view(['GET'])
 # def user_view(request, view_kwargs):
 #     if request.method == 'GET':   

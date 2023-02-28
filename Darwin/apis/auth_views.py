@@ -25,13 +25,15 @@ def signup(request):
     # preparing signup data
     for field in all_fields:
         if field in data:
+            if field == 'email':
+                data['email'] = data['email'].lower()
             signup_data[field] = data[field]
         else:
             return JsonResponse(output_format(message='Wrong data format.'))
     signup_data["password"] = pwd_context.hash(signup_data["password"])       #hashing password
     
     # checking whether email already exists or not
-    if database[auth_collection].find_one({"email": signup_data['email']}) is None:
+    if database[auth_collection].find_one({"email": signup_data['email'].lower()}) is None:
         try:
         # inserting data
             database[auth_collection].insert_one(signup_data)
@@ -48,7 +50,7 @@ def login(request):
     data = request.data if request.data is not None else {}
     if data is None:
         return JsonResponse(output_format(message='Didn\'t receive login data.'))
-    email = data['email']
+    email = data['email'].lower()
     password = data['password']
     if "@" in email:
         user = database[auth_collection].find_one({"email": email})
