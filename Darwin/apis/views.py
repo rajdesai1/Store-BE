@@ -3591,7 +3591,7 @@ def suggested_product(request, cat_id=None):
 def homepage_product(request):
     if request.method == 'GET':
         try:
-            data = database['Category-type'].aggregate([[
+            data = database['Category-type'].aggregate([
                                                     {
                                                         '$lookup': {
                                                             'from': 'Category', 
@@ -3742,9 +3742,10 @@ def homepage_product(request):
                                                         'cat_type': -1
                                                         }
                                                     }
-                                                ]])
+                                                ])
             
             data = list(data)
+            print(data)
             if data:
             # print(data)
                 return JsonResponse(output_format(message='Success!', data=data))
