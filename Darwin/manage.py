@@ -2,6 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from apis.body_measurement.humanet.measurement_evaluator import Human
 
 
 def main():

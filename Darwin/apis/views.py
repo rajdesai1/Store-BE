@@ -914,9 +914,9 @@ def admin_product(request, _id=None):
                         
                         #uploading here
                         try:
-                            storage.child(f'prod_image/{new_name}').put(f'{MEDIA_ROOT}/{new_name}')
+                            storage.child(f'prod_image/prod_image/{new_name}').put(f'{MEDIA_ROOT}/{new_name}')
                             default_storage.delete(new_name)        #deleting from local storage after uploading to the cloud
-                            image_url = storage.child(f'prod_image/{new_name}').get_url(token=None)
+                            image_url = storage.child(f'prod_image/prod_image/{new_name}').get_url(token=None)
                             data['prod_image'].append(image_url)
                         except:
                             return JsonResponse(output_format(message='Cloud upload failed.'))    
@@ -5000,7 +5000,10 @@ def measure(request):
             
             for param in ('gender', 'weight', 'height'):
                 
-                if request.POST[param] is None:
+                if request.POST[param] is not None:
+                    if param in ('weight', 'height'):
+                        params[param] = float(request.POST[param])
+                        
                     params[param] = request.POST[param]
                 else:
                     return JsonResponse(output_format(message='Wrong data format.'))
@@ -5012,8 +5015,8 @@ def measure(request):
                     mask = []
                     for i, file in enumerate(request.FILES.values()):
                         filename, fileextension = os.path.splitext(file.name)
-                        
-                        mask.append(unet_segmentation.img_segmenation(image=file))
+                        default_storage.save(filename, file)
+                        mask.append(unet_segmentation.img_segmenation(image=f'{MEDIA_ROOT}/{filename}'))
 
                     if len(mask) == 2:
                         measurements, mesh_path = demo.main(front=mask[0],
@@ -5028,7 +5031,7 @@ def measure(request):
                             
                             # preparing data to insert into db
                             data = {}
-                            _id = create_unique_object_id
+                            _id = create_unique_object_id()
                             data['_id'] = _id
                             data['user_id'] = user['_id']
                             data['timestemp'] = datetime.datetime.now()
@@ -5036,16 +5039,16 @@ def measure(request):
                             data['wieght'] = params['weight']
                             data['height'] = params['height']
                             data['results'] = measurements
-                            data['body_imgs'] = [
-                                {
-                                    'img_type': 'front',
-                                    'img_arr': mask[0]
-                                },
-                                {
-                                    'img_type': 'side',
-                                    'img_arr': mask[1]
-                                },
-                            ]
+                            # data['body_imgs'] = [
+                            #     {
+                            #         'img_type': 'front',
+                            #         'img_arr': mask[0]
+                            #     },
+                            #     {
+                            #         'img_type': 'side',
+                            #         'img_arr': mask[1]
+                            #     },
+                            # ]
                             
                             database['Measurement'].insert_one(data)
                             response_data = {}
@@ -5053,9 +5056,9 @@ def measure(request):
                             firebase = pyrebase.initialize_app(FIREBASECONFIG)
                             storage = firebase.storage()
                             
-                            storage.child(f'/body_models/{_id}').put(f'{mesh_path}')
+                            storage.child(f'/body_models/{_id}.obj').put(f'{mesh_path}')
                             # default_storage.delete()        #deleting from local storage after uploading to the cloud
-                            image_url = storage.child(f'body_models/{mesh_path.split("/")[-1]}').get_url(token=None)
+                            image_url = storage.child(f'body_models/{_id}.obj').get_url(token=None)
                             response_data['measurement_results'] = measurements
                             response_data['_id'] = _id
                             response_data['model_url'] = image_url

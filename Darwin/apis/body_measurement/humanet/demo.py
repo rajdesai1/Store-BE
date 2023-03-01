@@ -25,30 +25,30 @@ def main(front: np.ndarray,
          feature_model='ae',
          mesh_name:str = 'subject.obj',
          measurement_model:str = 'calvis'):
-    parser = argparse.ArgumentParser()
+    # parser = argparse.ArgumentParser()
     
-    parser.add_argument("--experiment", type=str, required = True, help='Give experiment name')
-    parser.add_argument("--front", type=str, required= True, help="path to front view image")
-    parser.add_argument("--side", type=str, required= True, help="path to side view image")
-    parser.add_argument("--gender", type=str, required = True)
-    parser.add_argument("--height", type=float, required = True)
-    parser.add_argument("--weight", type=float, required = True)
-    parser.add_argument("--feature_model", type=str, default='ae')
-    parser.add_argument("--mesh_name", type=str, default='subject.obj')
-    parser.add_argument("--measurement_model", type=str, default='calvis')
+    # parser.add_argument("--experiment", type=str, required = True, help='Give experiment name')
+    # parser.add_argument("--front", type=str, required= True, help="path to front view image")
+    # parser.add_argument("--side", type=str, required= True, help="path to side view image")
+    # parser.add_argument("--gender", type=str, required = True)
+    # parser.add_argument("--height", type=float, required = True)
+    # parser.add_argument("--weight", type=float, required = True)
+    # parser.add_argument("--feature_model", type=str, default='ae')
+    # parser.add_argument("--mesh_name", type=str, default='subject.obj')
+    # parser.add_argument("--measurement_model", type=str, default='calvis')
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
     try:
-        os.mkdir(os.path.join('data', 'demo'))
+        os.mkdir(os.path.join(f'{MEDIA_ROOT}/masks', 'demo'))
     except:
         pass
     
-    try:
-        experiment = ''.join(random.choices(string.ascii_uppercase +string.digits, k=6)).lower()
-        os.mkdir(os.path.join('data/demo', experiment))
-    except:
-        pass
+    # try:
+    experiment = ''.join(random.choices(string.ascii_uppercase +string.digits, k=6)).lower()
+    os.mkdir(os.path.join(f'{MEDIA_ROOT}/masks/demo', experiment))
+    # except:
+        # pass
 
     
     front = front/255.0
@@ -58,7 +58,7 @@ def main(front: np.ndarray,
 
     if feature_model == 'ae':
         
-        feature_extractor_path = f'weights/feature_extractor_{gender}_50.pth'
+        feature_extractor_path = f'{MEDIA_ROOT}/weights/feature_extractor_{gender}_50.pth'
         feature_extractor_weights = torch.load(feature_extractor_path,  map_location=torch.device('cpu'))
         feature_extractor = Deep2DEncoder(image_size= 512 , kernel_size=3, n_filters=32)
         feature_extractor.load_state_dict(feature_extractor_weights)
@@ -79,8 +79,8 @@ def main(front: np.ndarray,
     
     if feature_model == 'pca':
         
-        pca_front = load(f'weights/pca_{gender}_front.joblib')
-        pca_side = load(f'weights/pca_{gender}_side.joblib')
+        pca_front = load(f'{MEDIA_ROOT}/weights/pca_{gender}_front.joblib')
+        pca_side = load(f'{MEDIA_ROOT}/weights/pca_{gender}_side.joblib')
         
         front_features = pca_front.transform(np.array(front).reshape(1, 512*512))
         side_features = pca_side.transform(np.array(side).reshape(1, 512*512))
@@ -90,9 +90,9 @@ def main(front: np.ndarray,
 
         features = np.concatenate([front_features, side_features], axis = -1)
     print("Feature Extraction done \n Estimating Measurements")
-    template = np.load(f'data/{gender}_template.npy')
-    shape_dirs = np.load(f'data/{gender}_shapedirs.npy')
-    faces =  np.load(f'data/faces.npy')
+    template = np.load(f'{MEDIA_ROOT}/data/{gender}_template.npy')
+    shape_dirs = np.load(f'{MEDIA_ROOT}/data/{gender}_shapedirs.npy')
+    faces =  np.load(f'{MEDIA_ROOT}/data/faces.npy')
     
     if measurement_model == 'nomo':
         features = np.concatenate([features, np.array(height).reshape(1,1)], axis = -1)
@@ -101,11 +101,12 @@ def main(front: np.ndarray,
 
     
     if measurement_model == 'nomo':
-        human = load(f'weights/nomo_{gender}_krr.pkl')
+        human = load(f'{MEDIA_ROOT}/weights/nomo_{gender}_krr.pkl')
     
     else:
-        human = load(f'weights/calvis_{gender}_krr.pkl')
+        human = load(f'{MEDIA_ROOT}/weights/calvis_{gender}_krr.pkl')
     
+    features = np.array(features, dtype=float) 
     measurements = human.predict_measurements(features)
     shape = human.predict_shape(features)
     output_measurements = {}
@@ -118,6 +119,7 @@ def main(front: np.ndarray,
     print(f"Waist Circumference : {measurements[0][2]}")
 
     mesh = human.display_3D(shape)
+    os.mkdir(os.path.join(f'{MEDIA_ROOT}/body_models/', experiment))
     mesh.export(os.path.join(f'{MEDIA_ROOT}/body_models/{experiment}',mesh_name))
     print("3D model saved!")
 

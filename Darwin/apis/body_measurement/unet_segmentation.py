@@ -15,13 +15,11 @@ from iglovikov_helper_functions.dl.pytorch.utils import tensor_from_rgb_image
 
 
 def img_segmenation(image: Union[Path, str]) -> np.ndarray:
-    
-    if os.path.exists(image):
 
-        #loading image
-        loaded_image = load_rgb(image)
-
-
+        #load   ing image
+        image = load_rgb(image)
+        
+        print(image)
         # loading UNet model
         model = create_model("Unet_2020-07-20")
         model.eval()    #running model in inference mode
